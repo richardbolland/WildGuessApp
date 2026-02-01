@@ -1,4 +1,4 @@
-/* 1. Import the Font (Note: We use @import, not <link>) */
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Freckle+Face&display=swap');
 
 /* 2. Global Styles */

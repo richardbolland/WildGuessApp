@@ -140,6 +140,7 @@ const CountdownScreen = ({ onComplete, stickers, isReady }) => {
 };
 
 // --- MAIN COMPONENT: WildGuessGame ---
+// REPLACE ONLY THE WildGuessGame COMPONENT
 const WildGuessGame = () => {
     // --- STATE HOOKS ---
     const [view, setView] = useState('menu');
@@ -167,66 +168,59 @@ const WildGuessGame = () => {
 
     const LOADING_MESSAGES = ["Connecting to Satellite 🛰️", "Triangulating Signal 📡", "Tracking Wildlife 🐾", "Filtering Bad Data 🧹", "Verifying Coordinates 📍", "Consulting Biologists 👨‍🔬", "Loading Map Tiles 🗺️", "Enhancing Image 📸"];
 
-    // --- TUTORIAL DATA (9 Steps) ---
+    // --- TUTORIAL DATA ---
     const TUTORIAL_DATA = [
         { 
-            // Step 0: Map
             title: "CLUE 1: THE MAP",
             text: "📍 There is an **animal sighting** at this location. You'll have 4 more clues after this to make the best informed guess.",
-            positionClasses: "top-24 left-1/2 transform -translate-x-1/2 md:left-1/3 md:translate-x-0",
+            positionClasses: "bottom-10 left-1/2 transform -translate-x-1/2 md:top-24 md:left-1/3 md:translate-x-0",
             arrowClasses: "-top-[10px] left-1/2 -translate-x-1/2 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent",
             buttonText: "Reveal Next Clue"
         },
         { 
-            // Step 1: Region
             title: "CLUE 2: REGION",
             text: "📉 The map zooms in and the **Location Name** appears. This will make it slightly easier to identify the animal.",
-            positionClasses: "top-40 left-1/2 transform -translate-x-1/2 md:top-32 md:left-10 md:translate-x-0",
+            positionClasses: "bottom-10 left-1/2 transform -translate-x-1/2 md:top-32 md:left-10 md:translate-x-0",
             arrowClasses: "-top-[10px] left-1/2 -translate-x-1/2 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent",
             buttonText: "Reveal Next Clue"
         },
         { 
-            // Step 2: Taxonomy
             title: "CLUE 3: TAXONOMY",
             text: "🧬 Still unsure? Here is the **Family and Scientific Name**. We'll give you a chance to guess shortly...",
-            positionClasses: "top-60 left-1/2 transform -translate-x-1/2 md:top-56 md:left-10 md:translate-x-0",
+            positionClasses: "bottom-10 left-1/2 transform -translate-x-1/2 md:top-56 md:left-10 md:translate-x-0",
             arrowClasses: "-top-[10px] left-1/2 -translate-x-1/2 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent",
             buttonText: "Reveal Next Clue"
         },
         { 
-            // Step 3: Hint
             title: "CLUE 4: THE HINT",
             text: "🔎 This is a **cryptic behavior or trait description**. Are you ready to make a wild guess?",
-            positionClasses: "top-80 left-1/2 transform -translate-x-1/2 md:top-80 md:left-10 md:translate-x-0",
+            positionClasses: "bottom-10 left-1/2 transform -translate-x-1/2 md:top-80 md:left-10 md:translate-x-0",
             arrowClasses: "-top-[10px] left-1/2 -translate-x-1/2 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent",
             buttonText: "I'm Ready to Guess"
         },
         { 
-            // Step 4: Category Select
             title: "MAKE A GUESS",
             text: "Start by selecting a **Category**. You can also choose **ALL ANIMALS** if the categories are too overwhelming.",
-            positionClasses: "bottom-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0",
-            arrowClasses: "mobile-arrow-down md:desktop-arrow-right -bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent md:bottom-auto md:top-1/2 md:-right-[10px] md:left-auto md:translate-x-0 md:-translate-y-1/2 md:border-t-transparent md:border-b-transparent md:border-l-[10px] md:border-l-white md:border-r-0",
+            positionClasses: "top-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0",
+            arrowClasses: "-bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent md:bottom-auto md:top-1/2 md:-right-[10px] md:left-auto md:translate-x-0 md:-translate-y-1/2 md:border-t-transparent md:border-b-transparent md:border-l-[10px] md:border-l-white md:border-r-0",
             hideButton: true 
         },
         { 
-            // Step 5: Animal Select (First Guess)
             title: "PICK THE ANIMAL",
             text: "Choose the **animal** you think is at this sighting.",
-            positionClasses: "bottom-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0",
-            arrowClasses: "mobile-arrow-down md:desktop-arrow-right -bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent md:bottom-auto md:top-1/2 md:-right-[10px] md:left-auto md:translate-x-0 md:-translate-y-1/2 md:border-t-transparent md:border-b-transparent md:border-l-[10px] md:border-l-white md:border-r-0",
+            positionClasses: "top-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0",
+            arrowClasses: "-bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent md:bottom-auto md:top-1/2 md:-right-[10px] md:left-auto md:translate-x-0 md:-translate-y-1/2 md:border-t-transparent md:border-b-transparent md:border-l-[10px] md:border-l-white md:border-r-0",
             hideButton: true
         },
         { 
             // Step 6: Photo (Wrong Guess 1)
             title: "WRONG! BUT WAIT...",
             text: "Still didn't get it? Use the **photo** to make a final guess.",
-            positionClasses: "bottom-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0",
-            arrowClasses: "mobile-arrow-down md:desktop-arrow-right -bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent md:bottom-auto md:top-1/2 md:-right-[10px] md:left-auto md:translate-x-0 md:-translate-y-1/2 md:border-t-transparent md:border-b-transparent md:border-l-[10px] md:border-l-white md:border-r-0",
+            positionClasses: "bottom-10 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0",
+            arrowClasses: "-top-[10px] left-1/2 -translate-x-1/2 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent md:bottom-auto md:top-1/2 md:-right-[10px] md:left-auto md:translate-x-0 md:-translate-y-1/2 md:border-t-transparent md:border-b-transparent md:border-l-[10px] md:border-l-white md:border-r-0",
             hideButton: true
         },
         { 
-            // Step 7: WIN STATE
             title: "SUCCESS!",
             text: "Well done! You guessed correctly! Click **Play Again** to have another go.",
             positionClasses: "top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2",
@@ -234,7 +228,6 @@ const WildGuessGame = () => {
             buttonText: "Play Again"
         },
         { 
-            // Step 8: LOSE STATE
             title: "GAME OVER",
             text: "Oh well! At least you know what it is. Click **Play Again** to give it another go.",
             positionClasses: "top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2",
@@ -273,6 +266,37 @@ const WildGuessGame = () => {
     
     useEffect(() => { preloadNextGame(); }, []);
 
+    // --- INITIALIZATION EFFECT ---
+    useEffect(() => {
+        if (view === 'countdown') {
+            setWrongGuesses([]);
+            setRoundScore(5);
+            setGuessLocked(false);
+            setGameResult(null);
+            setSelectedGroup(null);
+            setGameId(prev => prev + 1); 
+            setCurrentClueIndex(-1);
+
+            const tutorialDone = localStorage.getItem('wildGuess_tutorial_complete');
+            if (!tutorialDone) {
+                setIsTutorialMode(true);
+                setTutorialStep(0);
+            } else {
+                setIsTutorialMode(false);
+            }
+
+            if (preloadedData) {
+                setAnimalData(preloadedData);
+                setPreloadedData(null);
+            } else {
+                setAnimalData(null); 
+                fetchValidAnimal().then(data => {
+                    setAnimalData(data);
+                });
+            }
+        }
+    }, [view]);
+
     const fetchValidAnimal = async () => {
         const historyJSON = localStorage.getItem('wildGuess_played');
         let played = historyJSON ? JSON.parse(historyJSON) : [];
@@ -294,24 +318,9 @@ const WildGuessGame = () => {
 
         const randomPage = Math.floor(Math.random() * 30) + 1; 
         
-        // --- CORRECTED FILTERS (Verified IDs) ---
-        
-        // EXCLUSION LIST (without_term_value_id)
-        // 19 = Dead 
-        // 23 = Feather 
-        // 25 = Scat 
-        // 26 = Track 
-        // 27 = Bone 
-        // 28 = Molt 
-        // 30 = Egg
-        const excludeTerms = "19,23,25,26,27,28,30";
-
-        // LICENSE ALLOW LIST
-        // cc0, cc-by, cc-by-nc, cc-by-sa, cc-by-nc-sa
+        // --- FILTERS (Correct IDs) ---
+        const excludeTerms = "19,23,24,25,26,27"; 
         const allowedLicenses = "cc0,cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa";
-        
-        // TAXON EXCLUSIONS
-        // 47144 (Domestic Dog), 47126 (Plants), 47170 (Fungi)
         const excludeTaxa = "47144,47126,47170";
 
         const fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_name=${target.sciName}&quality_grade=research&photos=true&per_page=1&page=${randomPage}&without_taxon_id=${excludeTaxa}&without_term_value_id=${excludeTerms}&photo_license=${allowedLicenses}`;
@@ -329,10 +338,23 @@ const WildGuessGame = () => {
 
             const obs = data.results[0];
 
-            // Client-side fallback just in case
-            if (isLowQualityRecord(obs)) {
-                console.warn("Filtered out low quality record, retrying...");
-                return fetchValidAnimal();
+            // --- STRICT TAXON VERIFICATION ---
+            const obsSciName = obs.taxon?.name?.toLowerCase() || "";
+            const targetSciName = target.sciName.toLowerCase();
+            if (!obsSciName.includes(targetSciName)) {
+                 console.warn(`MISMATCH DETECTED: Asked for '${targetSciName}' but got '${obsSciName}'. Retrying...`);
+                 return fetchValidAnimal();
+            }
+
+            // Legacy Text Filter Fallback
+            if (obs.description || (obs.tags && obs.tags.length > 0)) {
+                const text = (obs.description || "") + " " + (obs.tags || []).join(" ");
+                const lowerText = text.toLowerCase();
+                const badKeywords = ["dead", "carcass", "roadkill", "deceased", "skull", "bone", "skeleton", "remains", "track", "print", "footprint", "scat", "droppings", "feces", "zoo", "captive", "aquarium", "pet", "domestic"];
+                if (badKeywords.some(keyword => lowerText.includes(keyword))) {
+                    console.warn("Filtered out low quality record (Text), retrying...");
+                    return fetchValidAnimal();
+                }
             }
 
             const lat = obs.geojson?.coordinates[1] || obs.location?.split(',')[0];
@@ -348,7 +370,6 @@ const WildGuessGame = () => {
                 correctName: target.name, 
                 sciName: target.displayLatin || target.sciName,     
                 family: target.family || "Unknown Family", 
-                // High res images
                 image: obs.photos[0].url.replace('square', 'original').replace('small', 'original').replace('medium', 'original').replace('large', 'original'),
                 lat: parseFloat(lat),
                 lng: parseFloat(lng),
@@ -377,35 +398,7 @@ const WildGuessGame = () => {
     };
 
     const startGame = () => {
-        setWrongGuesses([]);
-        setRoundScore(5);
-        setGuessLocked(false);
-        setGameResult(null);
-        setSelectedGroup(null);
-        setGameId(prev => prev + 1);
-        setCurrentClueIndex(-1);
-        
-        const tutorialDone = localStorage.getItem('wildGuess_tutorial_complete');
-        // const tutorialDone = false; // Toggle for testing
-
-        if (!tutorialDone) {
-            setIsTutorialMode(true);
-            setTutorialStep(0);
-        } else {
-            setIsTutorialMode(false);
-        }
-
         setView('countdown');
-
-        if (preloadedData) {
-            setAnimalData(preloadedData);
-            setPreloadedData(null); 
-        } else {
-            setAnimalData(null); 
-            fetchValidAnimal().then(data => {
-                setAnimalData(data);
-            });
-        }
     };
 
     const onCountdownComplete = () => {
@@ -418,7 +411,6 @@ const WildGuessGame = () => {
     const startTimeForClue = () => {
         setTimeLeft(10);
         if (timerRef.current) clearInterval(timerRef.current);
-        
         if (isTutorialMode) return; 
 
         timerRef.current = setInterval(() => {
@@ -448,51 +440,38 @@ const WildGuessGame = () => {
         }
     };
 
-    // --- INTERACTIVE TUTORIAL LOGIC ---
-
     const handleCategoryClick = (group) => {
         setSelectedGroup(group);
-        // Step 4 is "Make a Guess (Select Category)"
         if (isTutorialMode && tutorialStep === 4) {
-            nextTutorialStep(); // Move to Step 5 (Pick Animal)
+            nextTutorialStep(); 
         }
     };
 
     const handleBackToCategories = () => {
         setSelectedGroup(null);
-        // If in "Pick Animal" step (5) and go back, revert to "Pick Category" step (4)
-        if (isTutorialMode && tutorialStep === 5) {
+        if (isTutorialMode && (tutorialStep === 5 || tutorialStep === 6)) {
             setTutorialStep(4);
         }
     };
 
     const handleFinalGuess = (animalName) => {
-        // --- TUTORIAL LOGIC ---
         if (isTutorialMode) {
             const isCorrect = animalName === animalData.correctName;
-
-            // SCENARIO 1: First Guess (Step 5)
             if (tutorialStep === 5) {
                 if (isCorrect) {
-                    // Correct! Jump to Win Bubble (7) and Show Modal
                     endGame('win'); 
                     setTutorialStep(7); 
                 } else {
-                    // Wrong! Mark red, show Photo Bubble (6)
                     setWrongGuesses([animalName]); 
-                    setCurrentClueIndex(4); // Photo
+                    setCurrentClueIndex(4); 
                     setRoundScore(1);
                     setTutorialStep(6); 
                 }
-            } 
-            // SCENARIO 2: Final Guess (Step 6)
-            else if (tutorialStep === 6) {
+            } else if (tutorialStep === 6) {
                 if (isCorrect) {
-                    // Correct! Jump to Win Bubble (7) and Show Modal
                     endGame('win');
                     setTutorialStep(7);
                 } else {
-                    // Wrong! Jump to Lose Bubble (8) and Show Modal
                     endGame('loss');
                     setTutorialStep(8);
                 }
@@ -500,7 +479,6 @@ const WildGuessGame = () => {
             return;
         }
 
-        // --- STANDARD GAME LOGIC ---
         if (guessLocked || view !== 'game') return;
         if (animalName === animalData.correctName) {
             endGame('win');
@@ -517,17 +495,13 @@ const WildGuessGame = () => {
         setView('summary');
     };
 
-    // --- TUTORIAL CONTROLS ---
-
     const toggleTutorial = () => {
         if (isTutorialMode) {
-            // Turn OFF
             setIsTutorialMode(false);
             localStorage.setItem('wildGuess_tutorial_complete', 'true');
             setWrongGuesses([]); 
             startTimeForClue(); 
         } else {
-            // Turn ON
             setIsTutorialMode(true);
             setTutorialStep(0);
             setCurrentClueIndex(0); 
@@ -539,27 +513,23 @@ const WildGuessGame = () => {
     };
 
     const nextTutorialStep = () => {
-        // Special Case: End Steps (7 or 8) -> Play Again
         if (tutorialStep >= 7) {
             setIsTutorialMode(false);
             localStorage.setItem('wildGuess_tutorial_complete', 'true');
             setShowToast(true);
             setTimeout(() => setShowToast(false), 4000);
-            startGame(); // Start new game
+            startGame(); 
             return;
         }
 
-        // Normal Progression
         if (tutorialStep < TUTORIAL_DATA.length - 1) {
             const nextStep = tutorialStep + 1;
             setTutorialStep(nextStep);
             
-            // Sync Game State
-            if (nextStep === 1) { setCurrentClueIndex(1); setRoundScore(4); } // Region
-            if (nextStep === 2) { setCurrentClueIndex(2); setRoundScore(3); } // Taxonomy
-            if (nextStep === 3) { setCurrentClueIndex(3); setRoundScore(2); } // Hint
-            // Step 4 & 5 = Interaction
-            if (nextStep === 6) { setCurrentClueIndex(4); setRoundScore(1); } // Photo Reveal
+            if (nextStep === 1) { setCurrentClueIndex(1); setRoundScore(4); }
+            if (nextStep === 2) { setCurrentClueIndex(2); setRoundScore(3); }
+            if (nextStep === 3) { setCurrentClueIndex(3); setRoundScore(2); }
+            if (nextStep === 6) { setCurrentClueIndex(4); setRoundScore(1); } 
         }
     };
 
@@ -587,7 +557,6 @@ const WildGuessGame = () => {
                             <p className="text-xs text-emerald-600 font-bold uppercase tracking-wide">Speed determines your score.</p>
                         </div>
                     </div>
-                    {/* START BUTTON (No longer disabled by loading) */}
                     <button onClick={startGame} className="relative overflow-hidden text-white font-bold py-4 rounded-full shadow-[0_6px_0_#14532d] active:shadow-none active:translate-y-1 transform transition-all border-4 border-white w-full hover:scale-105 bg-green-600 hover:bg-green-500">
                         <span className="text-2xl font-black tracking-widest uppercase drop-shadow-md">START HUNT</span>
                     </button>
@@ -608,35 +577,35 @@ const WildGuessGame = () => {
             <div className="flex-1 flex flex-col bg-white m-2 rounded-xl shadow-sm overflow-hidden relative order-1">
                 <div className="h-2 bg-slate-200 w-full flex-shrink-0"><div className="h-full bg-emerald-500 transition-all duration-1000 linear" style={{ width: `${(timeLeft / 10) * 100}%` }}></div></div>
                 <div className="flex-1 relative">
+                    {/* EXIT BUTTON (Top Left) */}
                     <button onClick={() => setView('menu')} className="absolute top-2 left-2 z-[60] bg-gradient-to-b from-blue-400 to-blue-600 border-2 border-slate-300 rounded shadow-md text-white font-bold uppercase tracking-widest text-[10px] px-2 py-1 flex items-center gap-1 hover:from-blue-500 hover:to-blue-700 active:scale-95 transition-all">
                         <span className="text-xs filter drop-shadow-sm">🔙</span><span className="drop-shadow-sm">EXIT</span>
                     </button>
 
-                    {/* TUTORIAL TOGGLE BUTTON */}
-                    <button onClick={toggleTutorial} className={`absolute top-12 left-2 z-[60] flex items-center gap-2 px-2 py-1 rounded shadow-md border-2 transition-all text-[10px] font-bold uppercase tracking-widest ${isTutorialMode ? 'bg-emerald-500 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-400 hover:bg-slate-50'}`}>
+                    {/* TUTORIAL TOGGLE BUTTON (Top Right) */}
+                    <button onClick={toggleTutorial} className={`absolute top-2 right-2 z-[60] flex items-center gap-2 px-2 py-1 rounded shadow-md border-2 transition-all text-[10px] font-bold uppercase tracking-widest ${isTutorialMode ? 'bg-emerald-500 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-400 hover:bg-slate-50'}`}>
                         <span className="text-xs">{isTutorialMode ? 'ON' : 'OFF'}</span><span>🎓</span>
                     </button>
 
                     {/* TOAST NOTIFICATION */}
                     {showToast && (
-                        <div className="absolute top-20 left-2 z-[70] bg-slate-800 text-white text-xs px-3 py-2 rounded-lg shadow-lg animate-pop max-w-[150px]">
-                            Tutorial hidden. Tap "OFF" to restart.
+                        <div className="absolute top-12 right-2 z-[70] bg-slate-800 text-white text-xs px-3 py-2 rounded-lg shadow-lg animate-pop max-w-[150px] text-right">
+                            Tutorial hidden.<br/>Tap "OFF" to restart.
                         </div>
                     )}
 
                     <div className="absolute inset-0" key={gameId}>
+                        {/* Map Layer */}
                         <div className={`absolute inset-0 transition-opacity duration-500 ${currentClueIndex >= 0 ? 'opacity-100' : 'opacity-0'}`}>
                             {animalData && (
                                 <MapClue 
                                     lat={animalData.lat} 
                                     lng={animalData.lng} 
-                                    // Logic: Clue 1 (Index 0) = Zoom 2
-                                    //        Clue 2 (Index 1) = Zoom 5
-                                    //        Clue 3+ (Index 2+) = Zoom 11
                                     zoom={currentClueIndex === 0 ? 2 : (currentClueIndex === 1 ? 5 : 11)} 
                                 />
                             )}
                         </div>
+                        {/* Photo Background Layer (Desktop only) */}
                         <div className={`hidden md:block absolute inset-0 z-10 transition-opacity duration-1000 bg-slate-200 ${currentClueIndex >= 4 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                             {animalData?.image && (<div className="w-full h-full relative"><img src={animalData.image} className="w-full h-full object-cover" alt="Revealed Animal" /><div className="absolute inset-0 bg-black/10"></div></div>)}
                         </div>
@@ -647,32 +616,54 @@ const WildGuessGame = () => {
                         <p className="text-white text-sm font-bold mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] uppercase tracking-widest">Can you identify this animal?</p>
                     </div>
 
-                    <div className="absolute inset-0 top-2 md:top-24 p-4 pb-24 flex flex-col items-center justify-start pointer-events-none overflow-y-auto clue-scroll z-20 space-y-2">
+                    {/* CLUES CONTAINER */}
+                    <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center pt-12 pb-2 px-2 md:pt-24 md:pb-4 md:px-4">
+                        
+                        {/* Clue 5: Image (MOBILE ONLY) */}
                         {currentClueIndex === 4 && animalData?.image && (
-                            <div className="md:hidden bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-full max-w-sm h-48 flex-shrink-0 animate-pop mb-2">
-                                <img src={animalData.image} className="w-full h-full object-cover" alt="Clue" />
+                            <div className="w-full flex justify-center md:hidden mb-2 order-first">
+                                <div className="bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-48 h-32 flex-shrink-0 animate-pop">
+                                    <img src={animalData.image} className="w-full h-full object-cover" alt="Clue" />
+                                </div>
                             </div>
                         )}
-                        <div className={`transition-all duration-500 transform ${currentClueIndex >= 1 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:block' : ''}`}>
-                            <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-lg shadow-xl border border-white/50">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase block text-center tracking-wider">Location</span>
-                                <span className="text-slate-800 font-bold text-lg leading-tight block">{animalData?.location}</span>
+                        
+                        {/* Clue 2: Location (TOP) */}
+                        {/* FIXED: Changed 'hidden md:block' to 'hidden md:flex' to maintain centering */}
+                        <div className={`order-1 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 1 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
+                            <div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-4 md:py-2 rounded-lg shadow-xl border border-white/50">
+                                <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block text-center tracking-wider">Location</span>
+                                <span className="text-slate-800 font-bold text-xs md:text-lg leading-tight block">{animalData?.location}</span>
                             </div>
                         </div>
-                        <div className={`transition-all duration-500 transform ${currentClueIndex >= 2 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:block' : ''}`}>
-                            <div className="bg-white/90 backdrop-blur-md px-6 py-3 rounded-lg shadow-xl border border-white/50 text-center min-w-[220px]">
-                                <div className="mb-2"><span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Family</span><span className="text-indigo-600 font-mono font-bold text-lg leading-none">{animalData?.family}</span></div>
-                                <div className="border-t border-slate-200/50 pt-2"><span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Scientific Name</span><span className="text-emerald-800 italic font-serif text-xl leading-none">{animalData?.sciName}</span></div>
+
+                        {/* Clue 4: Hint (PUSHED TO BOTTOM) */}
+                        <div className={`order-2 w-full flex justify-center md:static mt-auto mb-2 md:mb-4 transition-all duration-500 transform ${currentClueIndex >= 3 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}`}>
+                            <div className="bg-emerald-50/95 backdrop-blur-md px-3 py-1.5 md:px-5 md:py-3 rounded-lg shadow-xl border border-emerald-100 max-w-sm text-center mx-4">
+                                <span className="text-[8px] md:text-[10px] font-bold text-emerald-600 uppercase block mb-0.5 tracking-wider">Hint</span>
+                                <div className="text-emerald-900 font-medium italic text-xs md:text-lg leading-tight">"{animalData?.stats?.trait}"</div>
                             </div>
                         </div>
-                        <div className={`transition-all duration-500 transform ${currentClueIndex >= 3 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}`}>
-                            <div className="bg-emerald-50/95 backdrop-blur-md px-5 py-3 rounded-lg shadow-xl border border-emerald-100 max-w-sm text-center">
-                                <span className="text-[10px] font-bold text-emerald-600 uppercase block mb-1 tracking-wider">Hint</span>
-                                <div className="text-emerald-900 font-medium italic text-lg leading-snug">"{animalData?.stats?.trait}"</div>
+
+                        {/* Clue 3: Taxonomy (VERY BOTTOM) */}
+                        {/* FIXED: Changed 'hidden md:block' to 'hidden md:flex' to maintain centering */}
+                        <div className={`order-3 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 2 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
+                            <div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-6 md:py-3 rounded-lg shadow-xl border border-white/50 text-center min-w-[160px] md:min-w-[220px]">
+                                <div className="mb-0.5 md:mb-2">
+                                    <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Family</span>
+                                    <span className="text-indigo-600 font-mono font-bold text-xs md:text-lg leading-none">{animalData?.family}</span>
+                                </div>
+                                <div className="border-t border-slate-200/50 pt-0.5 md:pt-2">
+                                    <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Scientific Name</span>
+                                    <span className="text-emerald-800 italic font-serif text-sm md:text-xl leading-none">{animalData?.sciName}</span>
+                                </div>
                             </div>
                         </div>
+
                     </div>
                 </div>
+                
+                {/* FOOTER */}
                 <div className="h-14 bg-white border-t border-slate-100 flex items-center justify-between px-4 z-10 flex-shrink-0">
                     <div className="text-slate-500 font-mono text-sm">PTS: <span className="text-emerald-600 font-bold">{roundScore}</span></div>
                     <div className="flex gap-2">
@@ -699,24 +690,24 @@ const WildGuessGame = () => {
             </div>
 
             {/* --- RIGHT PANEL: SIDEBAR (ANSWERS) --- */}
-            <div className="h-[35%] md:h-full md:w-96 bg-slate-50 p-2 overflow-hidden border-t md:border-t-0 md:border-l border-slate-200 order-2 flex flex-col shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative">
+            <div className="h-[45%] md:h-full md:w-96 bg-slate-50 p-2 overflow-hidden border-t md:border-t-0 md:border-l border-slate-200 order-2 flex flex-col shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative">
                 {!selectedGroup && (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 overflow-y-auto custom-scroll p-1 h-full content-start">
                         <button 
                             onClick={() => handleCategoryClick("ALL")} 
                             disabled={guessLocked || (isTutorialMode && tutorialStep < 4)} 
-                            className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-slate-200 text-slate-700 hover:bg-slate-300 hover:shadow-md cursor-pointer border border-slate-300 flex-row justify-start px-3 py-2 h-14 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
+                            className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-slate-200 text-slate-700 hover:bg-slate-300 hover:shadow-md cursor-pointer border border-slate-300 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
                         >
-                            <span className="text-2xl mr-3 md:mr-0 md:mb-1">🌎</span><span className="text-[10px] md:text-[10px] font-bold uppercase tracking-tight text-left md:text-center leading-tight">All Animals</span>
+                            <span className="text-xl mr-2 md:mr-0 md:mb-1">🌎</span><span className="text-[10px] md:text-[10px] font-bold uppercase tracking-tight text-left md:text-center leading-tight">All Animals</span>
                         </button>
                         {ANIMAL_GROUPS.map((group, idx) => (
                             <button 
                                 key={idx} 
                                 disabled={guessLocked || (isTutorialMode && tutorialStep < 4)} 
                                 onClick={() => handleCategoryClick(group)} 
-                                className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-white hover:bg-emerald-50 hover:shadow-md cursor-pointer border border-slate-100 flex-row justify-start px-3 py-2 h-14 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
+                                className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-white hover:bg-emerald-50 hover:shadow-md cursor-pointer border border-slate-100 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
                             >
-                                <span className="text-2xl mr-3 md:mr-0 md:mb-1">{group.emoji}</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight text-left md:text-center leading-tight">{group.name}</span>
+                                <span className="text-xl mr-2 md:mr-0 md:mb-1">{group.emoji}</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight text-left md:text-center leading-tight">{group.name}</span>
                             </button>
                         ))}
                     </div>
@@ -725,12 +716,12 @@ const WildGuessGame = () => {
                     <div className="flex flex-col h-full">
                         <button 
                             onClick={handleBackToCategories} 
-                            disabled={isTutorialMode && tutorialStep !== 5} 
-                            className={`mb-2 flex items-center text-slate-500 hover:text-emerald-600 text-sm font-bold px-2 py-1 flex-shrink-0 ${(isTutorialMode && tutorialStep !== 5) ? 'opacity-50' : ''}`}
+                            disabled={isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6} 
+                            className={`mb-1 flex items-center text-slate-500 hover:text-emerald-600 text-[10px] uppercase font-bold px-1 py-1 flex-shrink-0 ${(isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6) ? 'opacity-50' : ''}`}
                         >
                             ← Back to Categories
                         </button>
-                        <div className="text-center mb-2 flex-shrink-0"><span className="text-3xl inline-block mr-2">{selectedGroup === "ALL" ? "🌎" : selectedGroup.emoji}</span><span className="text-lg font-bold text-slate-700">{selectedGroup === "ALL" ? "All Animals" : selectedGroup.name}</span></div>
+                        <div className="text-center mb-1 flex-shrink-0"><span className="text-xl inline-block mr-2">{selectedGroup === "ALL" ? "🌎" : selectedGroup.emoji}</span><span className="text-sm font-bold text-slate-700">{selectedGroup === "ALL" ? "All Animals" : selectedGroup.name}</span></div>
                         <div className={`grid gap-2 overflow-y-auto custom-scroll p-1 flex-1 content-start ${selectedGroup === "ALL" ? 'grid-cols-3' : 'grid-cols-2'}`}>
                             {(selectedGroup === "ALL" ? ALL_ANIMALS_FLAT : selectedGroup.animals).map((animal, idx) => {
                                 const isWrong = wrongGuesses.includes(animal.name);
@@ -739,7 +730,7 @@ const WildGuessGame = () => {
                                         key={idx} 
                                         disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)} 
                                         onClick={() => handleFinalGuess(animal.name)} 
-                                        className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all leading-tight ${selectedGroup === "ALL" ? 'py-2 px-1 text-[10px] h-12' : 'py-3 px-2 text-sm'} ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}
+                                        className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all leading-tight ${selectedGroup === "ALL" ? 'py-1 px-1 text-[9px] h-10' : 'py-2 px-2 text-xs'} ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}
                                     >
                                         {animal.name} {selectedGroup === "ALL" && <span className="opacity-60 ml-0.5">{animal.groupEmoji}</span>}
                                     </button>
@@ -751,7 +742,6 @@ const WildGuessGame = () => {
             </div>
 
             {/* --- GLOBAL OVERLAYS --- */}
-            
             {view === 'summary' && (
                 <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-pop flex flex-col max-h-[90vh]">
@@ -773,7 +763,6 @@ const WildGuessGame = () => {
                 </div>
             )}
 
-            {/* SIMPLE TUTORIAL SPEECH BUBBLES (Dynamic Button Text) */}
             {isTutorialMode && (
                 <div className={`absolute z-[100] max-w-[280px] ${TUTORIAL_DATA[tutorialStep].positionClasses}`}>
                     <div className="bg-white rounded-xl shadow-2xl p-4 border-2 border-emerald-500 relative animate-pop">
@@ -781,7 +770,6 @@ const WildGuessGame = () => {
                         <p className="text-slate-700 font-bold text-sm mb-3 leading-snug">
                             {TUTORIAL_DATA[tutorialStep].text.split("**").map((part, i) => i % 2 === 1 ? <span key={i} className="text-emerald-600 font-black">{part}</span> : part)}
                         </p>
-                        {/* Only show button if 'hideButton' is NOT true */}
                         {!TUTORIAL_DATA[tutorialStep].hideButton && (
                             <button onClick={nextTutorialStep} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg text-xs uppercase tracking-wider shadow-sm">
                                 {TUTORIAL_DATA[tutorialStep].buttonText}
@@ -793,5 +781,4 @@ const WildGuessGame = () => {
         </div>
     );
 };
-
 export default WildGuessGame;
