@@ -1,0 +1,73 @@
+/* 1. Import the Font (Note: We use @import, not <link>) */
+@import url('https://fonts.googleapis.com/css2?family=Freckle+Face&display=swap');
+
+/* 2. Global Styles */
+body { 
+    font-family: 'Rubik', sans-serif; 
+    background-color: #f0fdf4; 
+    overscroll-behavior: none; 
+}
+
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+/* 3. Animations */
+@keyframes pop { 
+    0% { transform: scale(1); } 
+    50% { transform: scale(1.2); } 
+    100% { transform: scale(1); } 
+}
+.pop { animation: pop 0.3s ease-out; }
+
+@keyframes swap { 
+    0% { transform: scale(0.8); opacity: 0.5; } 
+    50% { transform: scale(1.1); opacity: 1; } 
+    100% { transform: scale(1); opacity: 1; } 
+}
+.swap-anim { animation: swap 0.15s ease-in-out; }
+
+/* 4. Landscape Warning */
+#landscape-warning { display: none; }
+@media screen and (max-height: 500px) and (orientation: landscape) { 
+    #landscape-warning { display: flex !important; } 
+}
+
+/* 5. Custom Sticker Styles */
+.font-freckle { 
+    font-family: 'Freckle Face', cursive; 
+    /* Ensures text is visible immediately if the font is slow */
+    font-display: swap; 
+}
+
+.sticker-text { 
+    -webkit-text-stroke: 8px white; 
+    paint-order: stroke fill; 
+    text-shadow: 4px 4px 0px rgba(0,0,0,0.2); 
+}
+
+.emoji-sticker { 
+    filter: 
+        drop-shadow(0px 2px 0px white) 
+        drop-shadow(0px -2px 0px white) 
+        drop-shadow(2px 0px 0px white) 
+        drop-shadow(-2px 0px 0px white) 
+        drop-shadow(0px 2px 0px white) 
+        drop-shadow(0px -2px 0px white) 
+        drop-shadow(2px 0px 0px white) 
+        drop-shadow(-2px 0px 0px white) 
+        drop-shadow(3px 3px 5px rgba(0,0,0,0.3)); 
+}
+
+/* 6. Leaflet Map Overrides */
+.leaflet-container { height: 100%; width: 100%; border-radius: 0.5rem; z-index: 0; }
+.custom-scroll::-webkit-scrollbar { width: 6px; }
+.custom-scroll::-webkit-scrollbar-track { background: transparent; }
+.custom-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+
+.custom-pin { 
+    background-color: #ef4444; 
+    width: 16px; 
+    height: 16px; 
+    border-radius: 50%; 
+    border: 3px solid white; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
+}

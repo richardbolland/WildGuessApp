@@ -1,0 +1,797 @@
+import { useState, useEffect, useRef, useMemo } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { ANIMAL_GROUPS } from './animals';
+
+// Flatten data for easy access
+const ALL_ANIMALS_FLAT = ANIMAL_GROUPS.reduce((acc, group) => {
+    return acc.concat(group.animals.map(a => ({...a, group: group.name, groupEmoji: group.emoji})));
+}, []).sort((a, b) => a.name.localeCompare(b.name));
+
+// --- COMPONENT: MapClue (With Cinematic FlyTo Animation) ---
+const MapClue = ({ lat, lng, zoom }) => {
+    const mapRef = useRef(null);
+    const mapInstanceRef = useRef(null);
+    const markerRef = useRef(null);
+    const resizeObserverRef = useRef(null);
+
+    // 1. Initialize Map
+    useEffect(() => {
+        if (mapRef.current && !mapInstanceRef.current) {
+            mapInstanceRef.current = L.map(mapRef.current, {
+                zoomControl: false, attributionControl: false, dragging: false,
+                scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, 
+            }).setView([lat, lng], zoom);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                maxZoom: 19
+            }).addTo(mapInstanceRef.current);
+
+            const icon = L.divIcon({
+                className: 'custom-pin', html: `<div></div>`,
+                iconSize: [20, 20], iconAnchor: [10, 10]
+            });
+
+            markerRef.current = L.marker([lat, lng], { icon }).addTo(mapInstanceRef.current);
+
+            resizeObserverRef.current = new ResizeObserver(() => {
+                if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
+            });
+            resizeObserverRef.current.observe(mapRef.current);
+        }
+        
+        // Cleanup function
+        return () => {
+            if (resizeObserverRef.current) resizeObserverRef.current.disconnect();
+            if (mapInstanceRef.current) {
+                mapInstanceRef.current.remove();
+                mapInstanceRef.current = null;
+            }
+        };
+    }, []);
+
+    // 2. React to props updates (Cinematic Zoom)
+    useEffect(() => {
+        if (mapInstanceRef.current && markerRef.current) {
+            // Use flyTo for the smooth zoom effect
+            mapInstanceRef.current.flyTo([lat, lng], zoom, {
+                animate: true,
+                duration: 2.0 // 2 seconds for a nice slow cinematic feel
+            });
+            markerRef.current.setLatLng([lat, lng]);
+        }
+    }, [lat, lng, zoom]);
+
+    return <div ref={mapRef} className="w-full h-full"></div>;
+};
+
+// --- HELPER: Filter Low Quality Records ---
+const isLowQualityRecord = (record) => {
+    if (record.annotations && record.annotations.length > 0) {
+        for (const note of record.annotations) {
+            if (note.attribute_id === 22 && note.value_id !== 28) return true; // Not Organism
+            if (note.attribute_id === 9 && note.value_id === 10) return true; // Dead
+        }
+    }
+    const dynProps = (record.dynamicProperties || "").toLowerCase().replace(/\s/g, "");
+    if (dynProps.includes('"evidenceofpresence":"track"') || dynProps.includes('"evidenceofpresence":"scat"') || dynProps.includes('"vitality":"dead"')) return true;
+
+    const bannedKeywords = ["track", "print", "footprint", "paw", "scat", "feces", "dropping", "poop", "dung", "burrow", "nest", "den", "moult", "shed", "dead", "roadkill", "carcass", "remains", "bone", "skull", "skeleton", "corpse"];
+    const textFields = [record.occurrenceRemarks, record.fieldNotes, record.media?.[0]?.description, record.media?.[0]?.title, record.occurrenceStatus].filter(Boolean).join(" ").toLowerCase();
+    return bannedKeywords.some(keyword => textFields.includes(keyword));
+};
+
+// --- COMPONENT: CountdownScreen ---
+const CountdownScreen = ({ onComplete, stickers, isReady }) => {
+    const [count, setCount] = useState(3);
+    const [emoji, setEmoji] = useState("🦁");
+    const emojis = ["🦁", "🐯", "🐻", "🐨", "🐼", "🐸", "🐙", "🦊", "🦓", "🦄", "🦅", "🐝", "🦀", "🦖"];
+
+    // Timer Logic
+    useEffect(() => {
+        if (count > 0) {
+            const timer = setTimeout(() => setCount(c => c - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [count]);
+
+    // Completion Logic (Wait for Data)
+    useEffect(() => {
+        if (count === 0 && isReady) {
+            const timer = setTimeout(onComplete, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [count, isReady, onComplete]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setEmoji(emojis[Math.floor(Math.random() * emojis.length)]);
+        }, 150);
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="h-screen w-full flex flex-col items-center justify-center bg-gradient-to-b from-green-900 to-green-700 overflow-hidden relative text-white">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
+                {stickers && stickers.map((sticker) => (
+                    <div key={sticker.id} className="absolute emoji-sticker transition-transform duration-1000 ease-in-out" style={{ top: `${sticker.top}%`, left: `${sticker.left}%`, fontSize: `${sticker.size}rem`, transform: `rotate(${sticker.rotation}deg)`, opacity: sticker.opacity }}>{sticker.emoji}</div>
+                ))}
+            </div>
+            <div className="relative z-10 flex flex-col items-center">
+                <h2 className="text-4xl font-black mb-8 animate-pulse text-emerald-100 drop-shadow-md tracking-wider uppercase">GET READY</h2>
+                
+                {/* Dynamic Counter Text */}
+                <div className="text-9xl mb-8 font-mono font-bold drop-shadow-2xl text-white">
+                    {count > 0 ? count : (isReady ? "GO!" : <span className="text-6xl animate-pulse">📡</span>)}
+                </div>
+                
+                {/* Status Message if Waiting */}
+                {count === 0 && !isReady && (
+                    <div className="text-emerald-200 font-mono font-bold uppercase tracking-widest animate-pulse mb-4">
+                        Acquiring Target Data...
+                    </div>
+                )}
+
+                <div className="text-7xl swap-anim filter drop-shadow-xl">{emoji}</div>
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN COMPONENT: WildGuessGame ---
+const WildGuessGame = () => {
+    // --- STATE HOOKS ---
+    const [view, setView] = useState('menu');
+    const [animalData, setAnimalData] = useState(null);
+    const [preloadedData, setPreloadedData] = useState(null);
+    const [currentClueIndex, setCurrentClueIndex] = useState(0);
+    const [timeLeft, setTimeLeft] = useState(10);
+    const [roundScore, setRoundScore] = useState(5);
+    const [guessLocked, setGuessLocked] = useState(false);
+    const [wrongGuesses, setWrongGuesses] = useState([]);
+    const [gameResult, setGameResult] = useState(null);
+    const [selectedGroup, setSelectedGroup] = useState(null); 
+    const [gameId, setGameId] = useState(0);
+    
+    // --- LOADING & TUTORIAL STATE ---
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingProgress, setLoadingProgress] = useState(0);
+    const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+    const [isTutorialMode, setIsTutorialMode] = useState(false);
+    const [tutorialStep, setTutorialStep] = useState(0); 
+    const [showToast, setShowToast] = useState(false);
+
+    // --- REFS --- 
+    const timerRef = useRef(null);
+
+    const LOADING_MESSAGES = ["Connecting to Satellite 🛰️", "Triangulating Signal 📡", "Tracking Wildlife 🐾", "Filtering Bad Data 🧹", "Verifying Coordinates 📍", "Consulting Biologists 👨‍🔬", "Loading Map Tiles 🗺️", "Enhancing Image 📸"];
+
+    // --- TUTORIAL DATA (9 Steps) ---
+    const TUTORIAL_DATA = [
+        { 
+            // Step 0: Map
+            title: "CLUE 1: THE MAP",
+            text: "📍 There is an **animal sighting** at this location. You'll have 4 more clues after this to make the best informed guess.",
+            positionClasses: "top-24 left-1/2 transform -translate-x-1/2 md:left-1/3 md:translate-x-0",
+            arrowClasses: "-top-[10px] left-1/2 -translate-x-1/2 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent",
+            buttonText: "Reveal Next Clue"
+        },
+        { 
+            // Step 1: Region
+            title: "CLUE 2: REGION",
+            text: "📉 The map zooms in and the **Location Name** appears. This will make it slightly easier to identify the animal.",
+            positionClasses: "top-40 left-1/2 transform -translate-x-1/2 md:top-32 md:left-10 md:translate-x-0",
+            arrowClasses: "-top-[10px] left-1/2 -translate-x-1/2 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent",
+            buttonText: "Reveal Next Clue"
+        },
+        { 
+            // Step 2: Taxonomy
+            title: "CLUE 3: TAXONOMY",
+            text: "🧬 Still unsure? Here is the **Family and Scientific Name**. We'll give you a chance to guess shortly...",
+            positionClasses: "top-60 left-1/2 transform -translate-x-1/2 md:top-56 md:left-10 md:translate-x-0",
+            arrowClasses: "-top-[10px] left-1/2 -translate-x-1/2 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent",
+            buttonText: "Reveal Next Clue"
+        },
+        { 
+            // Step 3: Hint
+            title: "CLUE 4: THE HINT",
+            text: "🔎 This is a **cryptic behavior or trait description**. Are you ready to make a wild guess?",
+            positionClasses: "top-80 left-1/2 transform -translate-x-1/2 md:top-80 md:left-10 md:translate-x-0",
+            arrowClasses: "-top-[10px] left-1/2 -translate-x-1/2 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent",
+            buttonText: "I'm Ready to Guess"
+        },
+        { 
+            // Step 4: Category Select
+            title: "MAKE A GUESS",
+            text: "Start by selecting a **Category**. You can also choose **ALL ANIMALS** if the categories are too overwhelming.",
+            positionClasses: "bottom-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0",
+            arrowClasses: "mobile-arrow-down md:desktop-arrow-right -bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent md:bottom-auto md:top-1/2 md:-right-[10px] md:left-auto md:translate-x-0 md:-translate-y-1/2 md:border-t-transparent md:border-b-transparent md:border-l-[10px] md:border-l-white md:border-r-0",
+            hideButton: true 
+        },
+        { 
+            // Step 5: Animal Select (First Guess)
+            title: "PICK THE ANIMAL",
+            text: "Choose the **animal** you think is at this sighting.",
+            positionClasses: "bottom-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0",
+            arrowClasses: "mobile-arrow-down md:desktop-arrow-right -bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent md:bottom-auto md:top-1/2 md:-right-[10px] md:left-auto md:translate-x-0 md:-translate-y-1/2 md:border-t-transparent md:border-b-transparent md:border-l-[10px] md:border-l-white md:border-r-0",
+            hideButton: true
+        },
+        { 
+            // Step 6: Photo (Wrong Guess 1)
+            title: "WRONG! BUT WAIT...",
+            text: "Still didn't get it? Use the **photo** to make a final guess.",
+            positionClasses: "bottom-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0",
+            arrowClasses: "mobile-arrow-down md:desktop-arrow-right -bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent md:bottom-auto md:top-1/2 md:-right-[10px] md:left-auto md:translate-x-0 md:-translate-y-1/2 md:border-t-transparent md:border-b-transparent md:border-l-[10px] md:border-l-white md:border-r-0",
+            hideButton: true
+        },
+        { 
+            // Step 7: WIN STATE
+            title: "SUCCESS!",
+            text: "Well done! You guessed correctly! Click **Play Again** to have another go.",
+            positionClasses: "top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2",
+            arrowClasses: "hidden", 
+            buttonText: "Play Again"
+        },
+        { 
+            // Step 8: LOSE STATE
+            title: "GAME OVER",
+            text: "Oh well! At least you know what it is. Click **Play Again** to give it another go.",
+            positionClasses: "top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2",
+            arrowClasses: "hidden", 
+            buttonText: "Play Again"
+        }
+    ];
+
+    const menuStickers = useMemo(() => {
+        const emojis = ["🦁", "🐸", "🦜", "🦋", "🦇", "🦒", "🐺", "🐞", "🐢", "🐍", "🐘", "🦘", "🐙", "🐻", "🐊", "🐅", "🦓", "🦏", "🦩", "🦉", "🐋", "🐝", "🐫", "🦈", "🦍", "🐎", "🐀", "🐖", "🐈", "🐕"];
+        const cols = 6; const rows = 5; const cellW = 100 / cols; const cellH = 100 / rows;
+        return emojis.slice(0, cols * rows).map((emoji, i) => {
+            const col = i % cols; const row = Math.floor(i / cols);
+            return {
+                id: i, emoji,
+                left: (col * cellW) + Math.random() * (cellW * 0.7),
+                top: (row * cellH) + Math.random() * (cellH * 0.7),
+                rotation: Math.floor(Math.random() * 60) - 30,
+                size: 3 + Math.random() * 2,
+                opacity: 0.1 + Math.random() * 0.1 
+            };
+        });
+    }, []);
+
+    useEffect(() => {
+        let interval;
+        if (isLoading) {
+            setLoadingProgress(0); setLoadingMsgIndex(0);
+            interval = setInterval(() => {
+                setLoadingProgress(prev => Math.min(prev + 5, 95)); 
+                setLoadingMsgIndex(prev => (prev + 1) % LOADING_MESSAGES.length);
+            }, 400); 
+        }
+        return () => clearInterval(interval);
+    }, [isLoading]);
+    
+    useEffect(() => { preloadNextGame(); }, []);
+
+    const fetchValidAnimal = async () => {
+        const historyJSON = localStorage.getItem('wildGuess_played');
+        let played = historyJSON ? JSON.parse(historyJSON) : [];
+        const available = ALL_ANIMALS_FLAT.filter(a => !played.includes(a.name));
+
+        let target;
+        if (available.length === 0) {
+            played = [];
+            localStorage.removeItem('wildGuess_played');
+            target = ALL_ANIMALS_FLAT[Math.floor(Math.random() * ALL_ANIMALS_FLAT.length)];
+        } else {
+            target = available[Math.floor(Math.random() * available.length)];
+        }
+
+        if (!played.includes(target.name)) {
+             played.push(target.name);
+             localStorage.setItem('wildGuess_played', JSON.stringify(played));
+        }
+
+        const randomPage = Math.floor(Math.random() * 30) + 1; 
+        
+        // --- CORRECTED FILTERS (Verified IDs) ---
+        
+        // EXCLUSION LIST (without_term_value_id)
+        // 19 = Dead 
+        // 23 = Feather 
+        // 25 = Scat 
+        // 26 = Track 
+        // 27 = Bone 
+        // 28 = Molt 
+        // 30 = Egg
+        const excludeTerms = "19,23,25,26,27,28,30";
+
+        // LICENSE ALLOW LIST
+        // cc0, cc-by, cc-by-nc, cc-by-sa, cc-by-nc-sa
+        const allowedLicenses = "cc0,cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa";
+        
+        // TAXON EXCLUSIONS
+        // 47144 (Domestic Dog), 47126 (Plants), 47170 (Fungi)
+        const excludeTaxa = "47144,47126,47170";
+
+        const fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_name=${target.sciName}&quality_grade=research&photos=true&per_page=1&page=${randomPage}&without_taxon_id=${excludeTaxa}&without_term_value_id=${excludeTerms}&photo_license=${allowedLicenses}`;
+        
+        console.log(`Hunting for: ${target.name} | Query: ${target.sciName} | URL: ${fetchUrl}`);
+
+        try {
+            const response = await fetch(fetchUrl);
+            const data = await response.json();
+
+            if (!data.results || data.results.length === 0) {
+                console.warn("No valid results found, retrying...");
+                return fetchValidAnimal(); 
+            }
+
+            const obs = data.results[0];
+
+            // Client-side fallback just in case
+            if (isLowQualityRecord(obs)) {
+                console.warn("Filtered out low quality record, retrying...");
+                return fetchValidAnimal();
+            }
+
+            const lat = obs.geojson?.coordinates[1] || obs.location?.split(',')[0];
+            const lng = obs.geojson?.coordinates[0] || obs.location?.split(',')[1];
+
+            if (!lat || !lng || !obs.photos || obs.photos.length === 0) return fetchValidAnimal(); 
+
+            const dateObj = new Date(obs.observed_on || obs.created_at);
+            const dateStr = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+            return {
+                name: target.name,           
+                correctName: target.name, 
+                sciName: target.displayLatin || target.sciName,     
+                family: target.family || "Unknown Family", 
+                // High res images
+                image: obs.photos[0].url.replace('square', 'original').replace('small', 'original').replace('medium', 'original').replace('large', 'original'),
+                lat: parseFloat(lat),
+                lng: parseFloat(lng),
+                location: obs.place_guess || "Unknown Wilderness",
+                recordedBy: obs.user?.login || obs.user?.name || "Unknown Observer",
+                link: obs.uri,
+                stats: {
+                    trait: target.clue || target.hint || "No hint available.",
+                    date: dateStr,
+                    year: dateObj.getFullYear()
+                }
+            };
+        } catch (error) {
+            console.error("Fetch failed:", error);
+            return fetchValidAnimal();
+        }
+    };
+
+    const preloadNextGame = async () => {
+        try {
+            const data = await fetchValidAnimal();
+            setPreloadedData(data);
+        } catch (e) {
+            console.warn("Background fetch failed", e);
+        }
+    };
+
+    const startGame = () => {
+        setWrongGuesses([]);
+        setRoundScore(5);
+        setGuessLocked(false);
+        setGameResult(null);
+        setSelectedGroup(null);
+        setGameId(prev => prev + 1);
+        setCurrentClueIndex(-1);
+        
+        const tutorialDone = localStorage.getItem('wildGuess_tutorial_complete');
+        // const tutorialDone = false; // Toggle for testing
+
+        if (!tutorialDone) {
+            setIsTutorialMode(true);
+            setTutorialStep(0);
+        } else {
+            setIsTutorialMode(false);
+        }
+
+        setView('countdown');
+
+        if (preloadedData) {
+            setAnimalData(preloadedData);
+            setPreloadedData(null); 
+        } else {
+            setAnimalData(null); 
+            fetchValidAnimal().then(data => {
+                setAnimalData(data);
+            });
+        }
+    };
+
+    const onCountdownComplete = () => {
+        setView('game');
+        setCurrentClueIndex(0);
+        startTimeForClue();
+        preloadNextGame();
+    };
+
+    const startTimeForClue = () => {
+        setTimeLeft(10);
+        if (timerRef.current) clearInterval(timerRef.current);
+        
+        if (isTutorialMode) return; 
+
+        timerRef.current = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    advanceClue();
+                    return 10;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
+
+    const advanceClue = () => {
+        setCurrentClueIndex(prev => {
+            if (prev >= 4) { endGame('loss'); return 4; }
+            setGuessLocked(false);
+            setRoundScore(score => Math.max(1, score - 1));
+            return prev + 1;
+        });
+    };
+
+    const skipClue = () => {
+        if (currentClueIndex < 4) {
+            setTimeLeft(10); 
+            advanceClue();
+        }
+    };
+
+    // --- INTERACTIVE TUTORIAL LOGIC ---
+
+    const handleCategoryClick = (group) => {
+        setSelectedGroup(group);
+        // Step 4 is "Make a Guess (Select Category)"
+        if (isTutorialMode && tutorialStep === 4) {
+            nextTutorialStep(); // Move to Step 5 (Pick Animal)
+        }
+    };
+
+    const handleBackToCategories = () => {
+        setSelectedGroup(null);
+        // If in "Pick Animal" step (5) and go back, revert to "Pick Category" step (4)
+        if (isTutorialMode && tutorialStep === 5) {
+            setTutorialStep(4);
+        }
+    };
+
+    const handleFinalGuess = (animalName) => {
+        // --- TUTORIAL LOGIC ---
+        if (isTutorialMode) {
+            const isCorrect = animalName === animalData.correctName;
+
+            // SCENARIO 1: First Guess (Step 5)
+            if (tutorialStep === 5) {
+                if (isCorrect) {
+                    // Correct! Jump to Win Bubble (7) and Show Modal
+                    endGame('win'); 
+                    setTutorialStep(7); 
+                } else {
+                    // Wrong! Mark red, show Photo Bubble (6)
+                    setWrongGuesses([animalName]); 
+                    setCurrentClueIndex(4); // Photo
+                    setRoundScore(1);
+                    setTutorialStep(6); 
+                }
+            } 
+            // SCENARIO 2: Final Guess (Step 6)
+            else if (tutorialStep === 6) {
+                if (isCorrect) {
+                    // Correct! Jump to Win Bubble (7) and Show Modal
+                    endGame('win');
+                    setTutorialStep(7);
+                } else {
+                    // Wrong! Jump to Lose Bubble (8) and Show Modal
+                    endGame('loss');
+                    setTutorialStep(8);
+                }
+            }
+            return;
+        }
+
+        // --- STANDARD GAME LOGIC ---
+        if (guessLocked || view !== 'game') return;
+        if (animalName === animalData.correctName) {
+            endGame('win');
+        } else {
+            setWrongGuesses(prev => [...prev, animalName]);
+            if (currentClueIndex === 4) { endGame('loss'); } 
+            else { setTimeLeft(10); advanceClue(); }
+        }
+    };
+
+    const endGame = (result) => {
+        if (timerRef.current) clearInterval(timerRef.current);
+        setGameResult(result);
+        setView('summary');
+    };
+
+    // --- TUTORIAL CONTROLS ---
+
+    const toggleTutorial = () => {
+        if (isTutorialMode) {
+            // Turn OFF
+            setIsTutorialMode(false);
+            localStorage.setItem('wildGuess_tutorial_complete', 'true');
+            setWrongGuesses([]); 
+            startTimeForClue(); 
+        } else {
+            // Turn ON
+            setIsTutorialMode(true);
+            setTutorialStep(0);
+            setCurrentClueIndex(0); 
+            setRoundScore(5);
+            setWrongGuesses([]);
+            setSelectedGroup(null); 
+            if (timerRef.current) clearInterval(timerRef.current); 
+        }
+    };
+
+    const nextTutorialStep = () => {
+        // Special Case: End Steps (7 or 8) -> Play Again
+        if (tutorialStep >= 7) {
+            setIsTutorialMode(false);
+            localStorage.setItem('wildGuess_tutorial_complete', 'true');
+            setShowToast(true);
+            setTimeout(() => setShowToast(false), 4000);
+            startGame(); // Start new game
+            return;
+        }
+
+        // Normal Progression
+        if (tutorialStep < TUTORIAL_DATA.length - 1) {
+            const nextStep = tutorialStep + 1;
+            setTutorialStep(nextStep);
+            
+            // Sync Game State
+            if (nextStep === 1) { setCurrentClueIndex(1); setRoundScore(4); } // Region
+            if (nextStep === 2) { setCurrentClueIndex(2); setRoundScore(3); } // Taxonomy
+            if (nextStep === 3) { setCurrentClueIndex(3); setRoundScore(2); } // Hint
+            // Step 4 & 5 = Interaction
+            if (nextStep === 6) { setCurrentClueIndex(4); setRoundScore(1); } // Photo Reveal
+        }
+    };
+
+    if (view === 'menu') {
+        return (
+            <div className="h-screen w-full bg-gradient-to-b from-green-900 to-green-700 overflow-hidden relative flex flex-col items-center justify-center p-4">
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    {menuStickers.map((sticker) => (
+                        <div key={sticker.id} className="absolute emoji-sticker transition-transform duration-1000 ease-in-out hover:scale-110" style={{ top: `${sticker.top}%`, left: `${sticker.left}%`, fontSize: `${sticker.size}rem`, transform: `rotate(${sticker.rotation}deg)`, opacity: sticker.opacity }}>{sticker.emoji}</div>
+                    ))}
+                </div>
+                <div className="relative z-10 flex flex-col items-center w-full max-w-md">
+                    <h1 className="font-freckle text-6xl md:text-8xl text-green-950 sticker-text drop-shadow-2xl mb-4 tracking-wider leading-none whitespace-nowrap">WILD GUESS</h1>
+                    <div className="bg-white/95 backdrop-blur-sm p-5 md:p-6 rounded-3xl shadow-2xl w-full text-center border-4 border-white transform -rotate-1 mb-6">
+                        <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-3">HOW TO PLAY</p>
+                        <div className="flex justify-between items-center px-1 mb-4">
+                            <div className="flex flex-col items-center"><span className="text-4xl mb-1 filter drop-shadow-sm">📍</span><span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">Locate</span></div>
+                            <div className="text-slate-300 text-xl">➜</div>
+                            <div className="flex flex-col items-center"><span className="text-4xl mb-1 filter drop-shadow-sm">🧬</span><span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">Analyze</span></div>
+                            <div className="text-slate-300 text-xl">➜</div>
+                            <div className="flex flex-col items-center"><span className="text-4xl mb-1 filter drop-shadow-sm">🦁</span><span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">Identify</span></div>
+                        </div>
+                        <div className="pt-3 border-t border-slate-100">
+                            <p className="text-xs text-slate-600 font-medium leading-relaxed mb-1">Track the signal. Decode the clues. Name the beast.</p>
+                            <p className="text-xs text-emerald-600 font-bold uppercase tracking-wide">Speed determines your score.</p>
+                        </div>
+                    </div>
+                    {/* START BUTTON (No longer disabled by loading) */}
+                    <button onClick={startGame} className="relative overflow-hidden text-white font-bold py-4 rounded-full shadow-[0_6px_0_#14532d] active:shadow-none active:translate-y-1 transform transition-all border-4 border-white w-full hover:scale-105 bg-green-600 hover:bg-green-500">
+                        <span className="text-2xl font-black tracking-widest uppercase drop-shadow-md">START HUNT</span>
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (view === 'countdown') return <CountdownScreen onComplete={onCountdownComplete} stickers={menuStickers} isReady={!!animalData} />;
+
+    return (
+        <div className="h-screen w-full flex flex-col md:flex-row bg-slate-100 overflow-hidden relative">
+            <div id="landscape-warning" className="fixed inset-0 z-[100] bg-slate-900 text-white flex-col items-center justify-center p-6 text-center">
+                <div className="text-6xl mb-6">🔄</div><h2 className="text-2xl font-bold mb-2">Please Rotate Device</h2><p className="text-slate-300">This game is designed for portrait mode.</p>
+            </div>
+
+            {/* --- LEFT PANEL: MAP & CLUES --- */}
+            <div className="flex-1 flex flex-col bg-white m-2 rounded-xl shadow-sm overflow-hidden relative order-1">
+                <div className="h-2 bg-slate-200 w-full flex-shrink-0"><div className="h-full bg-emerald-500 transition-all duration-1000 linear" style={{ width: `${(timeLeft / 10) * 100}%` }}></div></div>
+                <div className="flex-1 relative">
+                    <button onClick={() => setView('menu')} className="absolute top-2 left-2 z-[60] bg-gradient-to-b from-blue-400 to-blue-600 border-2 border-slate-300 rounded shadow-md text-white font-bold uppercase tracking-widest text-[10px] px-2 py-1 flex items-center gap-1 hover:from-blue-500 hover:to-blue-700 active:scale-95 transition-all">
+                        <span className="text-xs filter drop-shadow-sm">🔙</span><span className="drop-shadow-sm">EXIT</span>
+                    </button>
+
+                    {/* TUTORIAL TOGGLE BUTTON */}
+                    <button onClick={toggleTutorial} className={`absolute top-12 left-2 z-[60] flex items-center gap-2 px-2 py-1 rounded shadow-md border-2 transition-all text-[10px] font-bold uppercase tracking-widest ${isTutorialMode ? 'bg-emerald-500 border-emerald-600 text-white' : 'bg-white border-slate-300 text-slate-400 hover:bg-slate-50'}`}>
+                        <span className="text-xs">{isTutorialMode ? 'ON' : 'OFF'}</span><span>🎓</span>
+                    </button>
+
+                    {/* TOAST NOTIFICATION */}
+                    {showToast && (
+                        <div className="absolute top-20 left-2 z-[70] bg-slate-800 text-white text-xs px-3 py-2 rounded-lg shadow-lg animate-pop max-w-[150px]">
+                            Tutorial hidden. Tap "OFF" to restart.
+                        </div>
+                    )}
+
+                    <div className="absolute inset-0" key={gameId}>
+                        <div className={`absolute inset-0 transition-opacity duration-500 ${currentClueIndex >= 0 ? 'opacity-100' : 'opacity-0'}`}>
+                            {animalData && (
+                                <MapClue 
+                                    lat={animalData.lat} 
+                                    lng={animalData.lng} 
+                                    // Logic: Clue 1 (Index 0) = Zoom 2
+                                    //        Clue 2 (Index 1) = Zoom 5
+                                    //        Clue 3+ (Index 2+) = Zoom 11
+                                    zoom={currentClueIndex === 0 ? 2 : (currentClueIndex === 1 ? 5 : 11)} 
+                                />
+                            )}
+                        </div>
+                        <div className={`hidden md:block absolute inset-0 z-10 transition-opacity duration-1000 bg-slate-200 ${currentClueIndex >= 4 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                            {animalData?.image && (<div className="w-full h-full relative"><img src={animalData.image} className="w-full h-full object-cover" alt="Revealed Animal" /><div className="absolute inset-0 bg-black/10"></div></div>)}
+                        </div>
+                    </div>
+
+                    <div className="hidden md:block absolute top-0 left-0 right-0 z-30 pt-6 text-center pointer-events-none">
+                        <h2 className="text-3xl md:text-4xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-tight uppercase leading-none">Take a <span className="text-emerald-400">Wild Guess</span></h2>
+                        <p className="text-white text-sm font-bold mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] uppercase tracking-widest">Can you identify this animal?</p>
+                    </div>
+
+                    <div className="absolute inset-0 top-2 md:top-24 p-4 pb-24 flex flex-col items-center justify-start pointer-events-none overflow-y-auto clue-scroll z-20 space-y-2">
+                        {currentClueIndex === 4 && animalData?.image && (
+                            <div className="md:hidden bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-full max-w-sm h-48 flex-shrink-0 animate-pop mb-2">
+                                <img src={animalData.image} className="w-full h-full object-cover" alt="Clue" />
+                            </div>
+                        )}
+                        <div className={`transition-all duration-500 transform ${currentClueIndex >= 1 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:block' : ''}`}>
+                            <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-lg shadow-xl border border-white/50">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase block text-center tracking-wider">Location</span>
+                                <span className="text-slate-800 font-bold text-lg leading-tight block">{animalData?.location}</span>
+                            </div>
+                        </div>
+                        <div className={`transition-all duration-500 transform ${currentClueIndex >= 2 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:block' : ''}`}>
+                            <div className="bg-white/90 backdrop-blur-md px-6 py-3 rounded-lg shadow-xl border border-white/50 text-center min-w-[220px]">
+                                <div className="mb-2"><span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Family</span><span className="text-indigo-600 font-mono font-bold text-lg leading-none">{animalData?.family}</span></div>
+                                <div className="border-t border-slate-200/50 pt-2"><span className="text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Scientific Name</span><span className="text-emerald-800 italic font-serif text-xl leading-none">{animalData?.sciName}</span></div>
+                            </div>
+                        </div>
+                        <div className={`transition-all duration-500 transform ${currentClueIndex >= 3 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}`}>
+                            <div className="bg-emerald-50/95 backdrop-blur-md px-5 py-3 rounded-lg shadow-xl border border-emerald-100 max-w-sm text-center">
+                                <span className="text-[10px] font-bold text-emerald-600 uppercase block mb-1 tracking-wider">Hint</span>
+                                <div className="text-emerald-900 font-medium italic text-lg leading-snug">"{animalData?.stats?.trait}"</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="h-14 bg-white border-t border-slate-100 flex items-center justify-between px-4 z-10 flex-shrink-0">
+                    <div className="text-slate-500 font-mono text-sm">PTS: <span className="text-emerald-600 font-bold">{roundScore}</span></div>
+                    <div className="flex gap-2">
+                        {/* Dynamic Give Up Button */}
+                        <button 
+                            onClick={() => endGame('surrender')} 
+                            className={`px-4 py-2 text-xs rounded-full transition-all duration-300 ${
+                                currentClueIndex === 4 
+                                ? 'bg-red-500 text-white font-black tracking-widest shadow-lg hover:bg-red-600 hover:scale-105 animate-pulse' 
+                                : 'text-slate-400 hover:text-red-500 font-medium'
+                            }`}
+                        >
+                            GIVE UP
+                        </button>
+
+                        {/* Next Clue Button - Hidden on Final Clue (Index 4) */}
+                        {currentClueIndex < 4 && (
+                            <button onClick={skipClue} className="bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-xs font-bold hover:bg-blue-100 transition">
+                                NEXT CLUE
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* --- RIGHT PANEL: SIDEBAR (ANSWERS) --- */}
+            <div className="h-[35%] md:h-full md:w-96 bg-slate-50 p-2 overflow-hidden border-t md:border-t-0 md:border-l border-slate-200 order-2 flex flex-col shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative">
+                {!selectedGroup && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 overflow-y-auto custom-scroll p-1 h-full content-start">
+                        <button 
+                            onClick={() => handleCategoryClick("ALL")} 
+                            disabled={guessLocked || (isTutorialMode && tutorialStep < 4)} 
+                            className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-slate-200 text-slate-700 hover:bg-slate-300 hover:shadow-md cursor-pointer border border-slate-300 flex-row justify-start px-3 py-2 h-14 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
+                        >
+                            <span className="text-2xl mr-3 md:mr-0 md:mb-1">🌎</span><span className="text-[10px] md:text-[10px] font-bold uppercase tracking-tight text-left md:text-center leading-tight">All Animals</span>
+                        </button>
+                        {ANIMAL_GROUPS.map((group, idx) => (
+                            <button 
+                                key={idx} 
+                                disabled={guessLocked || (isTutorialMode && tutorialStep < 4)} 
+                                onClick={() => handleCategoryClick(group)} 
+                                className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-white hover:bg-emerald-50 hover:shadow-md cursor-pointer border border-slate-100 flex-row justify-start px-3 py-2 h-14 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
+                            >
+                                <span className="text-2xl mr-3 md:mr-0 md:mb-1">{group.emoji}</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight text-left md:text-center leading-tight">{group.name}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+                {selectedGroup && (
+                    <div className="flex flex-col h-full">
+                        <button 
+                            onClick={handleBackToCategories} 
+                            disabled={isTutorialMode && tutorialStep !== 5} 
+                            className={`mb-2 flex items-center text-slate-500 hover:text-emerald-600 text-sm font-bold px-2 py-1 flex-shrink-0 ${(isTutorialMode && tutorialStep !== 5) ? 'opacity-50' : ''}`}
+                        >
+                            ← Back to Categories
+                        </button>
+                        <div className="text-center mb-2 flex-shrink-0"><span className="text-3xl inline-block mr-2">{selectedGroup === "ALL" ? "🌎" : selectedGroup.emoji}</span><span className="text-lg font-bold text-slate-700">{selectedGroup === "ALL" ? "All Animals" : selectedGroup.name}</span></div>
+                        <div className={`grid gap-2 overflow-y-auto custom-scroll p-1 flex-1 content-start ${selectedGroup === "ALL" ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                            {(selectedGroup === "ALL" ? ALL_ANIMALS_FLAT : selectedGroup.animals).map((animal, idx) => {
+                                const isWrong = wrongGuesses.includes(animal.name);
+                                return (
+                                    <button 
+                                        key={idx} 
+                                        disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)} 
+                                        onClick={() => handleFinalGuess(animal.name)} 
+                                        className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all leading-tight ${selectedGroup === "ALL" ? 'py-2 px-1 text-[10px] h-12' : 'py-3 px-2 text-sm'} ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}
+                                    >
+                                        {animal.name} {selectedGroup === "ALL" && <span className="opacity-60 ml-0.5">{animal.groupEmoji}</span>}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* --- GLOBAL OVERLAYS --- */}
+            
+            {view === 'summary' && (
+                <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-pop flex flex-col max-h-[90vh]">
+                        <div className="h-64 bg-slate-200 relative flex-shrink-0">
+                            {animalData?.image ? (<img src={animalData.image} className="w-full h-full object-cover" alt="Animal" />) : (<div className="w-full h-full flex items-center justify-center text-slate-400">No Image</div>)}
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-12"><h2 className="text-white text-3xl font-bold leading-none">{animalData?.correctName}</h2><p className="text-white/80 text-sm italic font-serif mt-1">{animalData?.sciName}</p></div>
+                        </div>
+                        <div className="p-6 text-center flex-1 overflow-y-auto custom-scroll">
+                            {gameResult === 'win' ? (<div className="mb-6"><div className="text-5xl mb-2 animate-bounce">🎉</div><h3 className="text-2xl font-bold text-emerald-600 mb-1">Correct!</h3><p className="text-slate-600 font-medium">You earned <span className="text-emerald-600 font-bold">{roundScore} points</span>.</p></div>) : (<div className="mb-6"><div className="text-5xl mb-2">☠️</div><h3 className="text-2xl font-bold text-red-600 mb-1">Missed it!</h3><p className="text-slate-600">Better luck next time.</p></div>)}
+                            <div className="bg-slate-50 rounded-xl p-4 text-left space-y-3 text-sm border border-slate-100 shadow-inner">
+                                <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Observed By</span>{animalData?.link ? (<a href={animalData.link} target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-medium hover:underline truncate max-w-[150px]">{animalData.recordedBy} ↗</a>) : (<span className="text-slate-700 font-medium">{animalData?.recordedBy}</span>)}</div>
+                                <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Date</span><span className="text-slate-700 font-medium">{animalData?.stats?.date}</span></div>
+                                <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Location</span><span className="text-slate-700 text-right max-w-[60%] font-medium">{animalData?.location}</span></div>
+                                <div className="pt-2 text-center border-t border-slate-200 mt-2"><p className="text-[10px] text-slate-400 leading-tight">Data source: <a href="https://doi.org/10.15468/ab3s5x" target="_blank" className="underline hover:text-emerald-500">iNaturalist Research-grade Observations</a><br/>accessed via GBIF.org</p></div>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-white border-t border-slate-100 flex-shrink-0"><button onClick={startGame} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-xl transition shadow-lg shadow-emerald-200 transform hover:scale-[1.02]">PLAY AGAIN</button></div>
+                    </div>
+                </div>
+            )}
+
+            {/* SIMPLE TUTORIAL SPEECH BUBBLES (Dynamic Button Text) */}
+            {isTutorialMode && (
+                <div className={`absolute z-[100] max-w-[280px] ${TUTORIAL_DATA[tutorialStep].positionClasses}`}>
+                    <div className="bg-white rounded-xl shadow-2xl p-4 border-2 border-emerald-500 relative animate-pop">
+                        <div className={`absolute w-0 h-0 border-[10px] ${TUTORIAL_DATA[tutorialStep].arrowClasses}`}></div>
+                        <p className="text-slate-700 font-bold text-sm mb-3 leading-snug">
+                            {TUTORIAL_DATA[tutorialStep].text.split("**").map((part, i) => i % 2 === 1 ? <span key={i} className="text-emerald-600 font-black">{part}</span> : part)}
+                        </p>
+                        {/* Only show button if 'hideButton' is NOT true */}
+                        {!TUTORIAL_DATA[tutorialStep].hideButton && (
+                            <button onClick={nextTutorialStep} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg text-xs uppercase tracking-wider shadow-sm">
+                                {TUTORIAL_DATA[tutorialStep].buttonText}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default WildGuessGame;
