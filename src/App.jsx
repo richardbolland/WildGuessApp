@@ -299,7 +299,11 @@ const WildGuessGame = () => {
 
     const fetchValidAnimal = async () => {
         const historyJSON = localStorage.getItem('wildGuess_played');
+        const reportedJSON = localStorage.getItem('wildGuess_reported'); // 1. Get Blacklist
+        
         let played = historyJSON ? JSON.parse(historyJSON) : [];
+        let reported = reportedJSON ? JSON.parse(reportedJSON) : [];
+
         const available = ALL_ANIMALS_FLAT.filter(a => !played.includes(a.name));
 
         let target;
@@ -318,14 +322,16 @@ const WildGuessGame = () => {
 
         const randomPage = Math.floor(Math.random() * 30) + 1; 
         
-        // --- FILTERS (Correct IDs) ---
-        const excludeTerms = "19,23,24,25,26,27"; 
+        // --- CORRECT iNATURALIST IDs ---
+        // Exclude: Dead(19), Feather(23), Scat(25), Track(26), Bone(27), Molt(28), Gall(29), Egg(30)
+        // Keep: Organism(24)
+        const excludeTerms = "19,23,25,26,27,28,29,30"; 
         const allowedLicenses = "cc0,cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa";
-        const excludeTaxa = "47144,47126,47170";
+        const excludeTaxa = "47144,47126,47170"; 
 
         const fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_name=${target.sciName}&quality_grade=research&photos=true&per_page=1&page=${randomPage}&without_taxon_id=${excludeTaxa}&without_term_value_id=${excludeTerms}&photo_license=${allowedLicenses}`;
         
-        console.log(`Hunting for: ${target.name} | Query: ${target.sciName} | URL: ${fetchUrl}`);
+        console.log(`Hunting for: ${target.name} | Query: ${target.sciName}`);
 
         try {
             const response = await fetch(fetchUrl);
@@ -338,21 +344,35 @@ const WildGuessGame = () => {
 
             const obs = data.results[0];
 
+            // --- 2. BLACKLIST CHECK ---
+            // If this specific observation ID has been reported by the user, skip it.
+            if (reported.includes(obs.id)) {
+                console.warn(`Skipping reported bad data ID: ${obs.id}`);
+                return fetchValidAnimal();
+            }
+
             // --- STRICT TAXON VERIFICATION ---
             const obsSciName = obs.taxon?.name?.toLowerCase() || "";
             const targetSciName = target.sciName.toLowerCase();
             if (!obsSciName.includes(targetSciName)) {
-                 console.warn(`MISMATCH DETECTED: Asked for '${targetSciName}' but got '${obsSciName}'. Retrying...`);
+                 console.warn(`MISMATCH: Asked for '${targetSciName}' but got '${obsSciName}'. Retrying...`);
                  return fetchValidAnimal();
             }
 
-            // Legacy Text Filter Fallback
+            // --- MANUAL "TRACK" CHECK ---
+            const badValueIds = [19, 23, 25, 26, 27, 28, 29, 30]; 
+            if (obs.annotations && obs.annotations.some(a => badValueIds.includes(a.value_id))) {
+                 console.warn("Manual Filter: Caught a 'Track' or 'Scat'. Retrying...");
+                 return fetchValidAnimal();
+            }
+
+            // --- TEXT FILTER ---
             if (obs.description || (obs.tags && obs.tags.length > 0)) {
                 const text = (obs.description || "") + " " + (obs.tags || []).join(" ");
                 const lowerText = text.toLowerCase();
                 const badKeywords = ["dead", "carcass", "roadkill", "deceased", "skull", "bone", "skeleton", "remains", "track", "print", "footprint", "scat", "droppings", "feces", "zoo", "captive", "aquarium", "pet", "domestic"];
                 if (badKeywords.some(keyword => lowerText.includes(keyword))) {
-                    console.warn("Filtered out low quality record (Text), retrying...");
+                    console.warn("Manual Filter: Suspicious keyword. Retrying...");
                     return fetchValidAnimal();
                 }
             }
@@ -366,6 +386,7 @@ const WildGuessGame = () => {
             const dateStr = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 
             return {
+                id: obs.id, // 3. STORE ID FOR REPORTING
                 name: target.name,           
                 correctName: target.name, 
                 sciName: target.displayLatin || target.sciName,     
@@ -387,6 +408,7 @@ const WildGuessGame = () => {
             return fetchValidAnimal();
         }
     };
+
 
     const preloadNextGame = async () => {
         try {
@@ -451,6 +473,21 @@ const WildGuessGame = () => {
         setSelectedGroup(null);
         if (isTutorialMode && (tutorialStep === 5 || tutorialStep === 6)) {
             setTutorialStep(4);
+        }
+    };
+
+    const handleReportIssue = () => {
+        if (!animalData || !animalData.id) return;
+        
+        const reportedJSON = localStorage.getItem('wildGuess_reported');
+        let reported = reportedJSON ? JSON.parse(reportedJSON) : [];
+        
+        if (!reported.includes(animalData.id)) {
+            reported.push(animalData.id);
+            localStorage.setItem('wildGuess_reported', JSON.stringify(reported));
+            alert("Reported! This specific entry will not appear in your game again.");
+        } else {
+            alert("You have already reported this entry.");
         }
     };
 
@@ -646,16 +683,19 @@ const WildGuessGame = () => {
                         </div>
 
                         {/* Clue 3: Taxonomy (VERY BOTTOM) */}
-                        {/* FIXED: Changed 'hidden md:block' to 'hidden md:flex' to maintain centering */}
                         <div className={`order-3 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 2 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
                             <div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-6 md:py-3 rounded-lg shadow-xl border border-white/50 text-center min-w-[160px] md:min-w-[220px]">
                                 <div className="mb-0.5 md:mb-2">
                                     <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Family</span>
+                                    {/* This uses the "sanitized" family name from your data file */}
                                     <span className="text-indigo-600 font-mono font-bold text-xs md:text-lg leading-none">{animalData?.family}</span>
                                 </div>
                                 <div className="border-t border-slate-200/50 pt-0.5 md:pt-2">
                                     <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Scientific Name</span>
-                                    <span className="text-emerald-800 italic font-serif text-sm md:text-xl leading-none">{animalData?.sciName}</span>
+                                    {/* THE FIX: Check for 'displayLatin' first. If it exists, use it. If not, use 'sciName'. */}
+                                    <span className="text-emerald-800 italic font-serif text-sm md:text-xl leading-none">
+                                        {animalData?.displayLatin || animalData?.sciName}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -755,7 +795,22 @@ const WildGuessGame = () => {
                                 <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Observed By</span>{animalData?.link ? (<a href={animalData.link} target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-medium hover:underline truncate max-w-[150px]">{animalData.recordedBy} ↗</a>) : (<span className="text-slate-700 font-medium">{animalData?.recordedBy}</span>)}</div>
                                 <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Date</span><span className="text-slate-700 font-medium">{animalData?.stats?.date}</span></div>
                                 <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Location</span><span className="text-slate-700 text-right max-w-[60%] font-medium">{animalData?.location}</span></div>
-                                <div className="pt-2 text-center border-t border-slate-200 mt-2"><p className="text-[10px] text-slate-400 leading-tight">Data source: <a href="https://doi.org/10.15468/ab3s5x" target="_blank" className="underline hover:text-emerald-500">iNaturalist Research-grade Observations</a><br/>accessed via GBIF.org</p></div>
+                                
+                                {/* DATA SOURCE & DISCLAIMER */}
+                                <div className="pt-2 text-center border-t border-slate-200 mt-2">
+                                    <p className="text-[10px] text-slate-400 leading-tight mb-2">Data source: <a href="https://www.inaturalist.org" target="_blank" className="underline hover:text-emerald-500">iNaturalist</a> (Research Grade). <br/>Photos & coordinates are user-submitted.</p>
+                                    
+                                    <div className="bg-orange-50 border border-orange-100 rounded p-2 mt-2">
+                                        <p className="text-[9px] text-orange-600 font-bold uppercase mb-1">⚠️ Data Disclaimer</p>
+                                        <p className="text-[9px] text-slate-500 leading-snug mb-2">Occasional inaccuracies (e.g., GPS errors) or sensitive content may occur in community data.</p>
+                                        <button 
+                                            onClick={handleReportIssue} 
+                                            className="bg-white border border-slate-200 shadow-sm text-[9px] text-slate-600 font-bold uppercase px-2 py-1 rounded hover:bg-slate-50 hover:text-red-500 transition-colors flex items-center justify-center w-full gap-1"
+                                        >
+                                            <span>🚩</span> Report Bad Data / Location
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div className="p-4 bg-white border-t border-slate-100 flex-shrink-0"><button onClick={startGame} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-xl transition shadow-lg shadow-emerald-200 transform hover:scale-[1.02]">PLAY AGAIN</button></div>
