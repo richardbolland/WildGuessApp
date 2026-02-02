@@ -237,7 +237,7 @@ export const ANIMAL_GROUPS = [
             { name: "Butterfly", sciName: "Danaus plexippus", family: "Nymphalidae", clue: "Migratory specialist; navigates via sun compass over thousands of miles." },
             { name: "Blue Carpenter Bee", sciName: "Xylocopa caerulea", family: "Apidae", clue: "Solitary buzzer; excavates nesting tunnels in dead wood." },
             { name: "Tarantula", sciName: "Brachypelma", family: "Theraphosidae", clue: "Long-lived ambusher; relies on vibrations rather than a web to hunt." },
-            { name: "Scorpion", sciName: "Pandinus imperator", displayLatin: "Order: Scorpiones", family: "Class: Arachnida", clue: "Ancient arachnid; gives birth to live young that ride on her back." },
+            { name: "Scorpion", sciName: "Pandinus imperator", displayLatin: "Clade: Arachnopulmonata", family: "Class: Arachnida", clue: "Ancient arachnid; gives birth to live young that ride on her back." },
             { name: "Snail", sciName: "Cornu aspersum", family: "Helicidae", clue: "Gastropod grazer; estivates in a mucus seal during dry periods." },
             { name: "Mantis", sciName: "Mantis religiosa", displayLatin: "Order: Mantodea", family: "Class: Insecta", clue: "Visual hunter; only insect capable of 3D vision." }
         ]
