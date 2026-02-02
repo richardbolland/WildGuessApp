@@ -589,20 +589,20 @@ const WildGuessGame = () => {
                     ))}
                 </div>
                 <div className="relative z-10 flex flex-col items-center w-full max-w-md">
-                    <h1 className="font-freckle text-6xl md:text-8xl text-green-950 sticker-text drop-shadow-2xl mb-4 tracking-wider leading-none whitespace-nowrap">WILD GUESS</h1>
+                    <h1 className="font-freckle text-5xl md:text-8xl text-green-950 sticker-text drop-shadow-2xl mb-4 tracking-wider leading-none whitespace-nowrap">W<span className="-mx-4 md:-mx-7 relative -top-1">🐊</span>LD GUESS</h1>
                     <div className="bg-white/95 backdrop-blur-sm p-5 md:p-6 rounded-3xl shadow-2xl w-full text-center border-4 border-white transform -rotate-1 mb-6">
                         <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-3">HOW TO PLAY</p>
                         <div className="flex justify-between items-center px-1 mb-4">
-                            <div className="flex flex-col items-center"><span className="text-4xl mb-1 filter drop-shadow-sm">📍</span><span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">Locate</span></div>
+                            <div className="flex flex-col items-center"><span className="text-4xl mb-1 filter drop-shadow-sm">📸</span><span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">Real Animal Sighting</span></div>
                             <div className="text-slate-300 text-xl">➜</div>
-                            <div className="flex flex-col items-center"><span className="text-4xl mb-1 filter drop-shadow-sm">🧬</span><span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">Analyze</span></div>
+                            <div className="flex flex-col items-center"><span className="text-4xl mb-1 filter drop-shadow-sm">🧬</span><span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">Analyze the data</span></div>
                             <div className="text-slate-300 text-xl">➜</div>
-                            <div className="flex flex-col items-center"><span className="text-4xl mb-1 filter drop-shadow-sm">🦁</span><span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">Identify</span></div>
+                            <div className="flex flex-col items-center"><span className="text-4xl mb-1 filter drop-shadow-sm">🦁</span><span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">Identify the animal</span></div>
                         </div>
-                        <div className="pt-3 border-t border-slate-100">
+                        {/*<div className="pt-3 border-t border-slate-100">
                             <p className="text-xs text-slate-600 font-medium leading-relaxed mb-1">Track the signal. Decode the clues. Name the beast.</p>
                             <p className="text-xs text-emerald-600 font-bold uppercase tracking-wide">Speed determines your score.</p>
-                        </div>
+                        </div>*/}
                     </div>
                     <button onClick={startGame} className="relative overflow-hidden text-white font-bold py-4 rounded-full shadow-[0_6px_0_#14532d] active:shadow-none active:translate-y-1 transform transition-all border-4 border-white w-full hover:scale-105 bg-green-600 hover:bg-green-500">
                         <span className="text-2xl font-black tracking-widest uppercase drop-shadow-md">START HUNT</span>
