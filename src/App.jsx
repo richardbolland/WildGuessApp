@@ -4,7 +4,13 @@
             import { ANIMAL_GROUPS } from './animals';
             import { auth, db, analytics } from './firebase';
             import { logEvent } from "firebase/analytics";
-            import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+            import { 
+    signInAnonymously, 
+    onAuthStateChanged, 
+    signOut,
+    GoogleAuthProvider, // <--- NEW
+    linkWithPopup       // <--- NEW
+} from "firebase/auth";
             import { 
                 doc, 
                 getDoc, 
@@ -83,6 +89,21 @@
 
         return <div ref={mapRef} className="w-full h-full"></div>;
     };
+
+
+    // Helper to get date keys (e.g., "2023-10-25" and "2023-W43")
+const getDateKeys = () => {
+    const now = new Date();
+    const dayKey = now.toISOString().split('T')[0]; // "2023-10-25"
+    
+    // Calculate Week Key
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const pastDays = Math.floor((now - startOfYear) / 86400000);
+    const weekNum = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);
+    const weekKey = `${now.getFullYear()}-W${weekNum}`; // "2023-W43"
+    
+    return { dayKey, weekKey };
+};
 
             // --- HELPER: Filter Low Quality Records ---
     const isLowQualityRecord = (record) => {
@@ -180,6 +201,7 @@
                 const [isSaving, setIsSaving] = useState(false);
                 const [showLeaderboard, setShowLeaderboard] = useState(false);
                 const [leaderboardData, setLeaderboardData] = useState([]);
+                const [leaderboardTab, setLeaderboardTab] = useState('allTime'); // 'allTime', 'weekly', 'daily'
 
                 // --- LOADING & TUTORIAL STATE ---
                 const [isLoading, setIsLoading] = useState(false);
@@ -341,27 +363,49 @@
                 // --- AUTO-FETCH LEADERBOARD ON MENU LOAD ---
     useEffect(() => {
         if (view === 'menu') {
-            fetchLeaderboard();
+            fetchLeaderboard(leaderboardTab);
         }
-    }, [view]);
+    }, [view, leaderboardTab]); // Re-run when Tab changes
 
-    // Update fetchLeaderboard to remove the "setShowLeaderboard(true)" line
-    // We don't need the modal state anymore since it's always visible.
-    const fetchLeaderboard = async () => {
-        // setShowLeaderboard(true); <--- DELETE THIS LINE
+    const fetchLeaderboard = async (tab = leaderboardTab) => {
         try {
-            const usersRef = collection(db, "users");
-            const q = query(usersRef, orderBy("totalScore", "desc"), limit(10));
+            let q;
+            const { dayKey, weekKey } = getDateKeys();
+
+            if (tab === 'daily') {
+                // Query: leaderboards/daily/{TODAY}
+                const dailyCollection = collection(db, "leaderboards", "daily", dayKey);
+                q = query(dailyCollection, orderBy("score", "desc"), limit(10));
+            } 
+            else if (tab === 'weekly') {
+                // Query: leaderboards/weekly/{THIS_WEEK}
+                const weeklyCollection = collection(db, "leaderboards", "weekly", weekKey);
+                q = query(weeklyCollection, orderBy("score", "desc"), limit(10));
+            } 
+            else {
+                // Default: All Time (Users collection)
+                const usersRef = collection(db, "users");
+                q = query(usersRef, orderBy("totalScore", "desc"), limit(10));
+            }
+
             const querySnapshot = await getDocs(q);
             
             const leaders = [];
             querySnapshot.forEach((doc) => {
-                leaders.push({ id: doc.id, ...doc.data() });
+                const data = doc.data();
+                // Normalize data structure (AllTime uses 'totalScore', others use 'score')
+                leaders.push({ 
+                    id: doc.id, 
+                    username: data.username,
+                    totalScore: data.totalScore || data.score || 0, // Handle both field names
+                    gamesPlayed: data.gamesPlayed || 0
+                });
             });
             
             setLeaderboardData(leaders);
         } catch (error) {
             console.error("Error fetching leaderboard:", error);
+            setLeaderboardData([]); // Clear on error (e.g., if today has no scores yet)
         }
     };
 
@@ -564,6 +608,49 @@
         setView('countdown');
     };
 
+    const handleGoogleLink = async () => {
+        const provider = new GoogleAuthProvider();
+        try {
+            // This triggers the Google popup
+            const result = await linkWithPopup(auth.currentUser, provider);
+            
+            // If successful, we update their Firestore profile with their Google Photo
+            // so we can eventually show it on the leaderboard!
+            const userRef = doc(db, "users", result.user.uid);
+            await updateDoc(userRef, {
+                isAnonymous: false, // Mark them as verified
+                photoURL: result.user.photoURL, // Save their Google Avatar
+                email: result.user.email
+            });
+
+            // Force update local user state to reflect the change
+            setUser({...result.user}); 
+            alert("Success! Your account is now linked to Google. Your stats are safe!");
+
+        } catch (error) {
+            console.error("Link Error:", error);
+            if (error.code === 'auth/credential-already-in-use') {
+                alert("That Google account is already linked to a different game history.\n\nTo switch to that account, please Logout first, then Log In with Google.");
+            } else {
+                alert("Could not link account: " + error.message);
+            }
+        }
+    };
+
+
+    const handleLogout = () => {
+        signOut(auth).then(() => {
+            // When we sign out, the useEffect hook will detect it,
+            // automatically sign in a NEW anonymous user, 
+            // and trigger the "Welcome" modal again.
+            setUsername("");
+            setIsProfileSetup(false);
+            setUser(null);
+        }).catch((error) => {
+            console.error("Error signing out:", error);
+        });
+    };
+
 
 
         const onCountdownComplete = () => {
@@ -670,23 +757,19 @@
         };
 
         const endGame = async (result) => {
-        // 1. Stop the Timer
         if (timerRef.current) clearInterval(timerRef.current);
 
-        // 2. Calculate Score Logic
         let score = 0;
         if (result === 'win') {
-            score = roundScore; // 4, 3, 2, or 1
+            score = roundScore;
         }
         
-        // 3. Update Local State (So the UI updates immediately)
         setGameResult(result);
         setView('summary');
         
-        // 4. FIREBASE: Save the Data
         if (user) {
             try {
-                // A. Analytics Event (Helps you see win rates in dashboard)
+                // 1. Analytics & History (Keep existing)
                 logEvent(analytics, 'level_end', {
                     level_name: 'wild_guess_standard',
                     success: result === 'win',
@@ -694,28 +777,55 @@
                     animal: animalData.correctName
                 });
 
-                // B. Save Game History to "games" collection
                 await addDoc(collection(db, "games"), {
                     userId: user.uid,
                     username: username,
                     animalName: animalData.correctName,
                     animalSciName: animalData.sciName,
-                    result: result, // 'win', 'surrender', 'loss'
+                    result: result, 
                     pointsEarned: score,
                     cluesUsed: currentClueIndex, 
                     location: animalData.location || "Unknown",
                     timestamp: serverTimestamp()
                 });
 
-                // C. Update User Totals (For the Leaderboard)
+                // 2. Prepare Time Keys
+                const { dayKey, weekKey } = getDateKeys();
+
+                // 3. Update ALL 3 Leaderboards simultaneously
                 const userRef = doc(db, "users", user.uid);
-                await updateDoc(userRef, {
+                
+                // References for Time-Based Leaderboards
+                // Structure: leaderboards/daily/2023-10-25/USER_ID
+                const dailyRef = doc(db, "leaderboards", "daily", dayKey, user.uid);
+                const weeklyRef = doc(db, "leaderboards", "weekly", weekKey, user.uid);
+
+                // A. All Time
+                const allTimePromise = updateDoc(userRef, {
                     totalScore: increment(score),
                     gamesPlayed: increment(1),
                     lastPlayed: serverTimestamp()
                 });
 
-                console.log(`📝 Game Saved! +${score} pts`);
+                // B. Daily
+                const dailyPromise = setDoc(dailyRef, {
+                    username: username,
+                    photoURL: user.photoURL || null,
+                    score: increment(score), // Adds to existing score for today
+                    gamesPlayed: increment(1)
+                }, { merge: true });
+
+                // C. Weekly
+                const weeklyPromise = setDoc(weeklyRef, {
+                    username: username,
+                    photoURL: user.photoURL || null,
+                    score: increment(score),
+                    gamesPlayed: increment(1)
+                }, { merge: true });
+
+                await Promise.all([allTimePromise, dailyPromise, weeklyPromise]);
+
+                console.log(`📝 Game Saved! +${score} pts (Daily/Weekly Updated)`);
 
             } catch (error) {
                 console.error("Error saving game stats:", error);
@@ -820,10 +930,33 @@
                         <span className="text-2xl font-black tracking-widest uppercase drop-shadow-md">START EXPEDITION</span>
                     </button>
                     
-                    {/* User Profile Badge */}
+                    {/* User Profile, Cloud Save & Logout */}
                     {user && (
-                        <div className="mt-4 bg-black/20 text-white/80 px-4 py-1 rounded-full text-xs font-bold backdrop-blur-sm">
-                            Playing as: <span className="text-white">{username}</span>
+                        <div className="mt-4 flex flex-col items-center gap-3">
+                            {/* Profile Name Badge */}
+                            <div className="bg-black/20 text-white/80 px-4 py-1 rounded-full text-xs font-bold backdrop-blur-sm flex items-center gap-2">
+                                <span>Playing as: <span className="text-white">{username}</span></span>
+                                {/* Show a Checkmark if they are Google Linked */}
+                                {!user.isAnonymous && <span title="Account Saved">✅</span>}
+                            </div>
+
+                            {/* CLOUD SAVE BUTTON (Only show if Anonymous) */}
+                            {user.isAnonymous && (
+                                <button 
+                                    onClick={handleGoogleLink}
+                                    className="bg-white text-slate-800 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+                                >
+                                    <span>☁️</span> Save Progress (Google)
+                                </button>
+                            )}
+
+                            {/* LOGOUT BUTTON */}
+                            <button 
+                                onClick={handleLogout}
+                                className="text-[10px] text-green-200/70 hover:text-white font-bold uppercase tracking-widest transition-colors hover:underline decoration-green-400 decoration-2 underline-offset-4"
+                            >
+                                ( Logout )
+                            </button>
                         </div>
                     )}
                 </div>
@@ -832,15 +965,30 @@
                 <div className="relative z-10 w-full max-w-md md:w-1/2 md:h-[80vh] flex flex-col md:pl-8">
                     <div className="bg-orange-50/95 backdrop-blur-sm rounded-3xl shadow-2xl border-4 border-orange-100 overflow-hidden flex flex-col h-full max-h-[500px] md:max-h-full">
                         
-                        {/* Header */}
-                        <div className="bg-orange-100 p-4 border-b border-orange-200 flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                                <span className="text-2xl">👑</span>
-                                {/* THEME UPDATE: Top Explorers */}
-                                <h2 className="text-orange-800 font-black tracking-wide text-lg uppercase">Top Explorers</h2>
+                        {/* Header with Tabs */}
+                        <div className="bg-orange-100 p-2 border-b border-orange-200 flex flex-col gap-2">
+                            <div className="flex justify-between items-center px-2">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xl">👑</span>
+                                    <h2 className="text-orange-800 font-black tracking-wide text-sm uppercase">Top Explorers</h2>
+                                </div>
                             </div>
-                            <div className="flex gap-1">
-                                <span className="bg-orange-200 text-orange-800 text-[10px] px-2 py-1 rounded font-bold uppercase">All Time</span>
+                            
+                            {/* TABS */}
+                            <div className="flex bg-orange-200/50 p-1 rounded-lg">
+                                {['daily', 'weekly', 'allTime'].map((tab) => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setLeaderboardTab(tab)}
+                                        className={`flex-1 text-[10px] font-bold uppercase py-1.5 rounded-md transition-all ${
+                                            leaderboardTab === tab 
+                                            ? 'bg-white text-orange-600 shadow-sm scale-105' 
+                                            : 'text-orange-800/60 hover:text-orange-800'
+                                        }`}
+                                    >
+                                        {tab === 'allTime' ? 'All Time' : tab}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 
@@ -983,14 +1131,14 @@
                                 {/* CLUES CONTAINER */}
                             <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center pt-12 pb-2 px-2 md:pt-24 md:pb-4 md:px-4">
 
-                                    {/* Clue 5: Image (MOBILE ONLY) */}
-                                {currentClueIndex === 4 && animalData?.image && (
-                                    <div className="w-full flex justify-center md:hidden mb-2 order-first">
-                                        <div className="bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-48 h-32 flex-shrink-0 animate-pop">
-                                            <img src={animalData.image} className="w-full h-full object-cover" alt="Clue" />
-                                        </div>
+                                    {/* Clue 5: Image (NOW VISIBLE ON DESKTOP) */}
+                            {currentClueIndex === 4 && animalData?.image && (
+                                <div className="w-full flex justify-center mb-2 md:mb-8 order-first pointer-events-auto">
+                                    <div className="bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-48 h-32 md:w-64 md:h-48 flex-shrink-0 animate-pop transform hover:scale-105 transition-transform cursor-pointer" onClick={() => window.open(animalData.image, '_blank')}>
+                                        <img src={animalData.image} className="w-full h-full object-cover" alt="Clue" />
                                     </div>
-                                    )}
+                                </div>
+                            )}
                                 
                                     {/* Clue 2: Location (TOP) */}
                                     {/* FIXED: Changed 'hidden md:block' to 'hidden md:flex' to maintain centering */}
