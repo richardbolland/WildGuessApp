@@ -6,27 +6,29 @@
             import { logEvent } from "firebase/analytics";
             import { sfx } from './sounds';
             import { 
+                getAuth,
                 signInAnonymously, 
                 onAuthStateChanged, 
                 signOut,
-    GoogleAuthProvider, // <--- NEW
-    linkWithPopup       // <--- NEW
-} from "firebase/auth";
-import { 
-    doc, 
-    getDoc, 
-    setDoc, 
-    updateDoc,
-    increment,  
-    addDoc,     
-    collection, 
-    serverTimestamp,
-    query,
-    orderBy,
-    limit,
-    where,
-    getDocs
-    } from "firebase/firestore";
+                GoogleAuthProvider,
+                signInWithPopup,
+                linkWithPopup       
+                } from "firebase/auth";
+            import { 
+                doc, 
+                getDoc, 
+                setDoc, 
+                updateDoc,
+                increment,  
+                addDoc,     
+                collection, 
+                serverTimestamp,
+                query,
+                orderBy,
+                limit,
+                where,
+                getDocs
+                } from "firebase/firestore";
 
             // Flatten data for easy access
     const ALL_ANIMALS_FLAT = ANIMAL_GROUPS.reduce((acc, group) => {
@@ -204,6 +206,8 @@ const isLowQualityRecord = (record) => {
                 const [searchTerm, setSearchTerm] = useState("");
                 const [user, setUser] = useState(null);
                 const [username, setUsername] = useState("");
+                const auth = getAuth(); 
+                const provider = new GoogleAuthProvider();
                 const [isProfileSetup, setIsProfileSetup] = useState(false);
                 const [authLoading, setAuthLoading] = useState(true);
                 const [isSaving, setIsSaving] = useState(false);
@@ -666,6 +670,16 @@ const isLowQualityRecord = (record) => {
             setView('menu');
         };
 
+        const handleLogin = async () => {
+        try {
+            sfx.play('click');
+            await signInWithPopup(auth, provider); // Now both 'auth' and 'provider' exist!
+        } catch (error) {
+            console.error("Login failed:", error);
+            sfx.play('error');
+        }
+    };
+
 
         const startGame = () => {
         sfx.play('start'); // <--- Updated to sfx.play
@@ -1123,7 +1137,6 @@ const isLowQualityRecord = (record) => {
 
     if (view === 'menu') {
         return (
-
             <div className="h-screen w-full bg-gradient-to-b from-green-900 to-green-700 overflow-x-hidden overflow-y-auto md:overflow-hidden relative flex flex-col md:flex-row items-center justify-start md:justify-center p-4 gap-6 py-12 md:py-0">   
                 {/* BACKGROUND STICKERS (Kept Global) */}
                 <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -1180,26 +1193,66 @@ const isLowQualityRecord = (record) => {
                         <span className="text-2xl font-black tracking-widest uppercase drop-shadow-md">START EXPEDITION</span>
                     </button>
                     
-                    {/* User Profile & Journal */}
-                    {user && (
-                        <div className="mt-4 flex flex-col items-center gap-3">
-                            <div className="bg-black/20 text-white/80 px-4 py-1 rounded-full text-xs font-bold backdrop-blur-sm">
-                                Playing as: <span className="text-white">{username}</span>
-                            </div>
+                    {/* User Profile & Journal Section */}
+                    <div className="mt-4 flex flex-col items-center gap-3 w-full">
+                        {user ? (
+                            /* --- OPTION A: LOGGED IN --- */
+                            <>
+                                {/* Profile Badge */}
+                                <div className="bg-black/20 text-white/80 px-4 py-1 rounded-full text-xs font-bold backdrop-blur-sm flex items-center gap-2">
+                                    {user.photoURL && <img src={user.photoURL} alt="User" className="w-4 h-4 rounded-full border border-white/50" />}
+                                    Playing as: <span className="text-white">{username}</span>
+                                </div>
 
-                            {/* JOURNAL BUTTON */}
-                            <button 
-                                onMouseEnter={() => sfx.play('hover', 0.2)}
-                                onClick={fetchJournal}
-                                className="bg-amber-100 text-amber-900 border-2 border-amber-300 px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
-                            >
-                                <span className="text-lg">📖</span> Field Journal
-                            </button>
+                                {/* JOURNAL BUTTON */}
+                                <button 
+                                    onMouseEnter={() => sfx.play('hover', 0.2)}
+                                    onClick={fetchJournal}
+                                    className="bg-amber-100 text-amber-900 border-2 border-amber-300 px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+                                >
+                                    <span className="text-lg">📖</span> Field Journal
+                                </button>
 
-                            {/* LOGOUT BUTTON (If you added it) */}
-                            <button onMouseEnter={() => sfx.play('hover', 0.2)} onClick={() => { sfx.play('click'); handleLogout(); }} className="text-[10px] text-green-200/70 hover:text-white font-bold uppercase tracking-widest transition-colors hover:underline decoration-green-400 decoration-2 underline-offset-4">( Logout )</button>
-                        </div>
+                                {/* LOGOUT BUTTON */}
+                                <button 
+                                    onMouseEnter={() => sfx.play('hover', 0.2)} 
+                                    onClick={() => { sfx.play('click'); handleLogout(); }} 
+                                    className="text-[10px] text-green-200/70 hover:text-white font-bold uppercase tracking-widest transition-colors hover:underline decoration-green-400 decoration-2 underline-offset-4"
+                                >
+                                    ( Logout )
+                                </button>
+                            </>
+                        ) : (
+                            /* --- OPTION B: GUEST / NOT LOGGED IN --- */
+                            <>
+                                {/* GOOGLE LOGIN BUTTON */}
+                                <button 
+                                    onClick={handleLogin}
+                                    onMouseEnter={() => sfx.play('hover', 0.2)}
+                                    className="bg-white text-slate-700 border-2 border-slate-200 px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:scale-105 transition-transform flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" viewBox="0 0 24 24">
+                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                                    </svg>
+                                    Login with Google
+                                </button>
+                                
+                                {/* Guest Indicator - Optional: Also allow guests to see journal? */}
+                                {username && (
+                                    <>
+                                        <div className="text-[10px] text-green-200/50 font-bold uppercase tracking-widest mt-1">
+                                            Playing as Guest: {username}
+                                        </div>
+                                         {/* Allow Guests to open journal too if you want */}
+                                        <button onClick={fetchJournal} className="mt-1 text-[10px] text-amber-100 hover:text-white underline">View Guest Journal</button>
+                                    </>
+                                )}
+                            </>
                         )}
+                    </div>
                 </div>
 
                 {/* --- RIGHT PANEL: LEADERBOARD (Explorer Theme) --- */}
@@ -1221,7 +1274,6 @@ const isLowQualityRecord = (record) => {
                                     onMouseEnter={() => sfx.play('hover', 0.2)}
                                     onClick={() => { sfx.play('click', 0.1); setLeaderboardTab(tab); }}
                                     key={tab}
-                                    onClick={() => setLeaderboardTab(tab)}
                                     className={`flex-1 text-[10px] font-bold uppercase py-1.5 rounded-md transition-all ${
                                         leaderboardTab === tab 
                                         ? 'bg-white text-orange-600 shadow-sm scale-105' 
@@ -1276,27 +1328,51 @@ const isLowQualityRecord = (record) => {
                                                     </span>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="bg-orange-100 px-3 py-1 rounded-lg">
-                                            <span className="font-mono font-black text-orange-600 text-sm">
-                                                {player.totalScore || 0}<span className="text-[9px] ml-0.5 opacity-60">PTS</span>
-                                            </span>
-                                        </div>
                                     </div>
-                                    ))
+                                    <div className="bg-orange-100 px-3 py-1 rounded-lg">
+                                        <span className="font-mono font-black text-orange-600 text-sm">
+                                            {player.totalScore || 0}<span className="text-[9px] ml-0.5 opacity-60">PTS</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                ))
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* --- AUTH / PROFILE MODAL (Existing) --- */}
+                {/* --- AUTH / PROFILE MODAL (Welcome Screen) --- */}
                 {(!authLoading && !isProfileSetup) && (
                     <div className="fixed inset-0 z-[60] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl text-center border-4 border-emerald-100">
-                            <div className="text-6xl mb-4">🐊</div>
-                            <h2 className="text-3xl font-freckle text-green-950 mb-2">Welcome to Wild Guess!</h2>
-                            <p className="text-slate-500 mb-6">Choose a username to track your scores and compete on the leaderboard.</p>
+                        <div className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl text-center border-4 border-emerald-100 relative overflow-hidden">
                             
+                            {/* Header */}
+                            <div className="text-6xl mb-4 animate-bounce">🐊</div>
+                            <h2 className="text-3xl font-freckle text-green-950 mb-2">Welcome to Wild Guess!</h2>
+                            <p className="text-slate-500 mb-6">Join the expedition to track your scores and compete on the leaderboard.</p>
+                            
+                            {/* --- OPTION 1: GOOGLE LOGIN (New) --- */}
+                            <button 
+                                onClick={handleLogin}
+                                className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-200 text-slate-700 font-bold py-3 rounded-xl shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all mb-6 group"
+                            >
+                                <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                                </svg>
+                                Sign in with Google
+                            </button>
+
+                            {/* Divider */}
+                            <div className="flex items-center gap-4 mb-6">
+                                <div className="h-px bg-slate-200 flex-1"></div>
+                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Or Play as Guest</span>
+                                <div className="h-px bg-slate-200 flex-1"></div>
+                            </div>
+
+                            {/* --- OPTION 2: GUEST USERNAME (Existing) --- */}
                             <form 
                                 onSubmit={(e) => {
                                     e.preventDefault();
@@ -1308,7 +1384,7 @@ const isLowQualityRecord = (record) => {
                                 <input 
                                     name="username"
                                     type="text" 
-                                    placeholder="Enter Username (e.g. SwampKing)" 
+                                    placeholder="Enter Guest Name..." 
                                     maxLength={15}
                                     required
                                     className="w-full px-4 py-3 text-lg border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:outline-none text-center font-bold text-slate-700 bg-slate-50"
@@ -1316,20 +1392,18 @@ const isLowQualityRecord = (record) => {
                                 <button 
                                     type="submit"
                                     disabled={isSaving}
-                                    className={`w-full font-bold py-3 rounded-xl transition transform shadow-lg text-white ${isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 hover:scale-[1.02]'}`}
+                                    className={`w-full font-bold py-3 rounded-xl transition transform shadow-lg text-white ${isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-400 hover:bg-slate-500 hover:scale-[1.02]'}`}
                                 >
-                                    {isSaving ? "SAVING..." : "START EXPEDITION"}
+                                    {isSaving ? "STARTING..." : "PLAY AS GUEST"}
                                 </button>
                             </form>
                         </div>
                     </div>
-
-                    )}
+                )}
                 {journalModal}
             </div>
             );
         }
-
         if (view === 'countdown') return <CountdownScreen onComplete={onCountdownComplete} stickers={menuStickers} isReady={!!animalData} />;
 
         return (
@@ -1382,9 +1456,19 @@ const isLowQualityRecord = (record) => {
                     )}
         </div>
                         {/* Photo Background Layer (Desktop only) */}
-        <div className={`hidden md:block absolute inset-0 z-10 transition-opacity duration-1000 bg-slate-200 ${currentClueIndex >= 4 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-            {animalData?.image && (<div className="w-full h-full relative"><img src={animalData.image} className="w-full h-full object-cover" alt="Revealed Animal" /><div className="absolute inset-0 bg-black/10"></div></div>)}
-            </div>
+        <div className={`hidden md:block absolute inset-0 z-10 transition-opacity duration-1000 bg-slate-200 overflow-hidden ${currentClueIndex >= 4 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            {animalData?.image && (
+                <div className="w-full h-full relative">
+                    {/* Added blur-xl and scale-110 to blur and hide edges */}
+                    <img 
+                        src={animalData.image} 
+                        className="w-full h-full object-cover blur-xl scale-110 transform" 
+                        alt="Revealed Animal" 
+                    />
+                    <div className="absolute inset-0 bg-black/10"></div>
+                </div>
+            )}
+        </div>
         </div>
 
         <div className="hidden md:block absolute top-0 left-0 right-0 z-30 pt-6 text-center pointer-events-none">
@@ -1395,14 +1479,28 @@ const isLowQualityRecord = (record) => {
                     {/* CLUES CONTAINER */}
         <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center pt-12 pb-2 px-2 md:pt-24 md:pb-4 md:px-4">
 
-                        {/* Clue 5: Image (NOW VISIBLE ON DESKTOP) */}
+                        {/* Clue 5: BLURRED IMAGE + QUESTION MARK */}
             {currentClueIndex === 4 && animalData?.image && (
                 <div className="w-full flex justify-center mb-2 md:mb-8 order-first pointer-events-auto">
-                    <div className="bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-48 h-32 md:w-64 md:h-48 flex-shrink-0 animate-pop transform hover:scale-105 transition-transform cursor-pointer" onClick={() => window.open(animalData.image, '_blank')}>
-                        <img src={animalData.image} className="w-full h-full object-cover" alt="Clue" />
+                    <div className="group relative bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-48 h-32 md:w-64 md:h-48 flex-shrink-0 animate-pop transform hover:scale-105 transition-transform cursor-pointer">
+                        
+                        {/* The Blurred Photo */}
+                        <img 
+                            src={animalData.image} 
+                            className="w-full h-full object-cover blur-[2px] scale-110 transition-all duration-700 group-hover:blur-none group-hover:scale-105" 
+                            alt="Mystery Clue" 
+                        />
+
+                        {/* The Question Mark Overlay */}
+                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                            <span className="text-6xl md:text-8xl font-black text-white/90 drop-shadow-md group-hover:opacity-50 transition-opacity">
+                                ?
+                            </span>
+                        </div>
+
                     </div>
                 </div>
-                )}
+            )}
 
                         {/* Clue 2: Location (TOP) */}
             <div className={`order-1 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 1 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
