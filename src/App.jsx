@@ -27,7 +27,8 @@
                 orderBy,
                 limit,
                 where,
-                getDocs
+                getDocs,
+                arrayUnion
                 } from "firebase/firestore";
 
             // Flatten data for easy access
@@ -109,20 +110,46 @@
 };
 
             // --- HELPER: Filter Low Quality Records ---
-const isLowQualityRecord = (record) => {
-    if (record.annotations && record.annotations.length > 0) {
-        for (const note of record.annotations) {
-                        if (note.attribute_id === 22 && note.value_id !== 28) return true; // Not Organism
-                        if (note.attribute_id === 9 && note.value_id === 10) return true; // Dead
-                    }
-                }
-                const dynProps = (record.dynamicProperties || "").toLowerCase().replace(/\s/g, "");
-                if (dynProps.includes('"evidenceofpresence":"track"') || dynProps.includes('"evidenceofpresence":"scat"') || dynProps.includes('"vitality":"dead"')) return true;
+    const isLowQualityRecord = (record) => {
+        // 1. Check Annotations (The most accurate check)
+        if (record.annotations && record.annotations.length > 0) {
+            for (const note of record.annotations) {
+                // Attribute 22 = "Evidence of Presence"
+                // Value 24 = "Organism" (The actual animal)
+                // If Evidence IS set, but it is NOT 24 (Organism), it's bad (e.g. Scat, Track, Molt, Bone)
+                if (note.attribute_id === 22 && note.value_id !== 24) return true;
+                
+                // Specific "Bad" Values to catch:
+                // 19=Dead, 23=Feather, 25=Scat, 26=Track, 27=Bone, 28=Molt, 29=Gall, 30=Egg
+                const badIds = [19, 23, 25, 26, 27, 28, 29, 30];
+                if (badIds.includes(note.value_id)) return true;
+            }
+        }
 
-                const bannedKeywords = ["track", "print", "footprint", "paw", "scat", "feces", "dropping", "poop", "dung", "burrow", "nest", "den", "moult", "shed", "dead", "roadkill", "carcass", "remains", "bone", "skull", "skeleton", "corpse"];
-                const textFields = [record.occurrenceRemarks, record.fieldNotes, record.media?.[0]?.description, record.media?.[0]?.title, record.occurrenceStatus].filter(Boolean).join(" ").toLowerCase();
-                return bannedKeywords.some(keyword => textFields.includes(keyword));
-            };
+        // 2. Check Dynamic Properties (JSON strings often found in iNaturalist data)
+        const dynProps = (record.dynamicProperties || "").toLowerCase().replace(/\s/g, "");
+        if (dynProps.includes('"evidenceofpresence":"track"') || 
+            dynProps.includes('"evidenceofpresence":"scat"') || 
+            dynProps.includes('"vitality":"dead"')) return true;
+
+        // 3. Check Text Fields (Description, Tags, Field Notes)
+        const bannedKeywords = [
+            "track", "print", "footprint", "paw", "scat", "feces", "dropping", "poop", "dung", 
+            "burrow", "nest", "den", "moult", "shed", "dead", "roadkill", "carcass", 
+            "remains", "bone", "skull", "skeleton", "corpse", "specimen", "taxidermy"
+        ];
+        
+        const textFields = [
+            record.description, 
+            record.occurrenceRemarks, 
+            record.fieldNotes, 
+            record.media?.[0]?.description, 
+            record.media?.[0]?.title, 
+            (record.tags || []).join(" ") 
+        ].filter(Boolean).join(" ").toLowerCase();
+
+        return bannedKeywords.some(keyword => textFields.includes(keyword));
+    };
 
             // --- COMPONENT: CountdownScreen ---
             const CountdownScreen = ({ onComplete, stickers, isReady }) => {
@@ -214,6 +241,8 @@ const isLowQualityRecord = (record) => {
                 const [showLeaderboard, setShowLeaderboard] = useState(false);
                 const [leaderboardData, setLeaderboardData] = useState([]);
                 const [leaderboardTab, setLeaderboardTab] = useState('allTime'); // 'allTime', 'weekly', 'daily'
+                const [globalBlacklist, setGlobalBlacklist] = useState([]);
+                const [isImageReady, setIsImageReady] = useState(false);
 
                 // --- LOADING & TUTORIAL STATE ---
                 const [isLoading, setIsLoading] = useState(false);
@@ -259,6 +288,26 @@ const isLowQualityRecord = (record) => {
             console.error("Error fetching journal:", error);
         }
     };
+
+    // --- LOAD GLOBAL BLACKLIST ---
+useEffect(() => {
+    const fetchBlacklist = async () => {
+        try {
+            // We store all bad IDs in one document called 'blacklist' inside a 'system' collection
+            const blacklistRef = doc(db, "system", "blacklist");
+            const docSnap = await getDoc(blacklistRef);
+
+            if (docSnap.exists()) {
+                setGlobalBlacklist(docSnap.data().ids || []);
+                console.log("🛡️ Global Blacklist Loaded:", docSnap.data().ids?.length || 0, "entries");
+            }
+        } catch (error) {
+            console.error("Failed to load blacklist:", error);
+        }
+    };
+
+    fetchBlacklist();
+}, []);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -466,9 +515,11 @@ const isLowQualityRecord = (record) => {
         }
     };
 
-                // --- INITIALIZATION EFFECT ---
+        
+    // --- INITIALIZATION EFFECT (Optimized) ---
     useEffect(() => {
         if (view === 'countdown') {
+            // 1. Reset lightweight state IMMEDIATELY so the UI looks right
             setWrongGuesses([]);
             setRoundScore(5);
             setGuessLocked(false);
@@ -476,138 +527,146 @@ const isLowQualityRecord = (record) => {
             setSelectedGroup(null);
             setGameId(prev => prev + 1); 
             setCurrentClueIndex(-1);
+            setIsImageReady(false); // Reset image ready state
 
             const tutorialDone = localStorage.getItem('wildGuess_tutorial_complete');
-            if (!tutorialDone) {
-                setIsTutorialMode(true);
-                setTutorialStep(0);
-            } else {
-                setIsTutorialMode(false);
-            }
+            setIsTutorialMode(!tutorialDone);
+            if (!tutorialDone) setTutorialStep(0);
 
-            if (preloadedData) {
-                setAnimalData(preloadedData);
-                setPreloadedData(null);
-            } else {
-                setAnimalData(null); 
-                fetchValidAnimal().then(data => {
-                    setAnimalData(data);
-                });
-            }
+            // 2. DELAY the heavy lifting by 100ms
+            // This allows the browser to render the "3" on screen BEFORE it starts thinking.
+            const heavyLiftingTimer = setTimeout(async () => {
+                
+                let targetData = null;
+
+                // A. Get Data (either preloaded or fetch new)
+                if (preloadedData) {
+                    targetData = preloadedData;
+                    setPreloadedData(null);
+                } else {
+                    targetData = await fetchValidAnimal();
+                }
+
+                // B. Set Data (starts the text loading)
+                setAnimalData(targetData);
+
+                // C. Preload the Image (The heavy network part)
+                if (targetData && targetData.image) {
+                    try {
+                        await preloadImage(targetData.image);
+                        console.log("📸 Image preloaded successfully");
+                    } catch (err) {
+                        console.warn("Image failed to preload, continuing anyway");
+                    }
+                }
+                
+                // D. Mark as Ready (This releases the countdown to finish)
+                setIsImageReady(true);
+
+            }, 100); // 100ms delay yields the UI thread
+
+            return () => clearTimeout(heavyLiftingTimer);
         }
     }, [view]);
 
     const fetchValidAnimal = async () => {
         const historyJSON = localStorage.getItem('wildGuess_played');
-                    const reportedJSON = localStorage.getItem('wildGuess_reported'); // 1. Get Blacklist
-                    
-                    let played = historyJSON ? JSON.parse(historyJSON) : [];
-                    let reported = reportedJSON ? JSON.parse(reportedJSON) : [];
+        const reportedJSON = localStorage.getItem('wildGuess_reported'); 
+        
+        let played = historyJSON ? JSON.parse(historyJSON) : [];
+        let reported = reportedJSON ? JSON.parse(reportedJSON) : [];
 
-                    const available = ALL_ANIMALS_FLAT.filter(a => !played.includes(a.name));
+        const available = ALL_ANIMALS_FLAT.filter(a => !played.includes(a.name));
 
-                    let target;
-                    if (available.length === 0) {
-                        played = [];
-                        localStorage.removeItem('wildGuess_played');
-                        target = ALL_ANIMALS_FLAT[Math.floor(Math.random() * ALL_ANIMALS_FLAT.length)];
-                    } else {
-                        target = available[Math.floor(Math.random() * available.length)];
-                    }
+        let target;
+        if (available.length === 0) {
+            played = [];
+            localStorage.removeItem('wildGuess_played');
+            target = ALL_ANIMALS_FLAT[Math.floor(Math.random() * ALL_ANIMALS_FLAT.length)];
+        } else {
+            target = available[Math.floor(Math.random() * available.length)];
+        }
 
-                    if (!played.includes(target.name)) {
-                       played.push(target.name);
-                       localStorage.setItem('wildGuess_played', JSON.stringify(played));
-                   }
+        if (!played.includes(target.name)) {
+            played.push(target.name);
+            localStorage.setItem('wildGuess_played', JSON.stringify(played));
+        }
 
-                   const randomPage = Math.floor(Math.random() * 30) + 1; 
+        const randomPage = Math.floor(Math.random() * 30) + 1; 
 
-                    // --- CORRECT iNATURALIST IDs ---
-                    // Exclude: Dead(19), Feather(23), Scat(25), Track(26), Bone(27), Molt(28), Gall(29), Egg(30)
-                    // Keep: Organism(24)
-                   const excludeTerms = "19,23,25,26,27,28,29,30"; 
-                   const allowedLicenses = "cc0,cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa";
-                   const excludeTaxa = "47144,47126,47170"; 
+        // --- CORRECT iNATURALIST IDs ---
+        const excludeTerms = "19,23,25,26,27,28,29,30"; 
+        const allowedLicenses = "cc0,cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa";
+        const excludeTaxa = "47144,47126,47170"; 
 
-                   const fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_name=${target.sciName}&quality_grade=research&photos=true&per_page=1&page=${randomPage}&without_taxon_id=${excludeTaxa}&without_term_value_id=${excludeTerms}&photo_license=${allowedLicenses}`;
+        const fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_name=${target.sciName}&quality_grade=research&photos=true&per_page=1&page=${randomPage}&without_taxon_id=${excludeTaxa}&without_term_value_id=${excludeTerms}&photo_license=${allowedLicenses}`;
 
-                   console.log(`Hunting for: ${target.name} | Query: ${target.sciName}`);
+        //console.log(`Hunting for: ${target.name} | Query: ${target.sciName}`);
 
-                   try {
-                    const response = await fetch(fetchUrl);
-                    const data = await response.json();
+        try {
+            const response = await fetch(fetchUrl);
+            const data = await response.json();
 
-                    if (!data.results || data.results.length === 0) {
-                        console.warn("No valid results found, retrying...");
-                        return fetchValidAnimal(); 
-                    }
+            if (!data.results || data.results.length === 0) {
+                console.warn("No valid results found, retrying...");
+                return fetchValidAnimal(); 
+            }
 
-                    const obs = data.results[0];
+            const obs = data.results[0];
 
-                        // --- 2. BLACKLIST CHECK ---
-                        // If this specific observation ID has been reported by the user, skip it.
-                    if (reported.includes(obs.id)) {
-                        console.warn(`Skipping reported bad data ID: ${obs.id}`);
-                        return fetchValidAnimal();
-                    }
+            // --- 1. BLACKLIST CHECK (Local & Global) ---
+            // Check if this ID is in the user's local history OR the global community blacklist
+            if (reported.includes(obs.id) || globalBlacklist.includes(obs.id)) {
+                console.warn(`🛡️ Blocked by Blacklist ID: ${obs.id}. Retrying...`);
+                return fetchValidAnimal();
+            }
 
-                        // --- STRICT TAXON VERIFICATION ---
-                    const obsSciName = obs.taxon?.name?.toLowerCase() || "";
-                    const targetSciName = target.sciName.toLowerCase();
-                    if (!obsSciName.includes(targetSciName)) {
-                       console.warn(`MISMATCH: Asked for '${targetSciName}' but got '${obsSciName}'. Retrying...`);
-                       return fetchValidAnimal();
-                   }
+            // --- 2. STRICT TAXON VERIFICATION ---
+            const obsSciName = obs.taxon?.name?.toLowerCase() || "";
+            const targetSciName = target.sciName.toLowerCase();
+            if (!obsSciName.includes(targetSciName)) {
+               console.warn("MISMATCH: Taxon did not match target. Retrying...");
+               return fetchValidAnimal();
+            }
 
-                        // --- MANUAL "TRACK" CHECK ---
-                   const badValueIds = [19, 23, 25, 26, 27, 28, 29, 30]; 
-                   if (obs.annotations && obs.annotations.some(a => badValueIds.includes(a.value_id))) {
-                       console.warn("Manual Filter: Caught a 'Track' or 'Scat'. Retrying...");
-                       return fetchValidAnimal();
-                   }
+            // --- 3. FILTER LOW QUALITY RECORDS (Using the Helper!) ---
+            if (isLowQualityRecord(obs)) {
+                console.warn("🛡️ Filtered out low quality record (Track/Scat/Dead). Retrying...");
+                return fetchValidAnimal();
+            }
 
-                        // --- TEXT FILTER ---
-                   if (obs.description || (obs.tags && obs.tags.length > 0)) {
-                    const text = (obs.description || "") + " " + (obs.tags || []).join(" ");
-                    const lowerText = text.toLowerCase();
-                    const badKeywords = ["dead", "carcass", "roadkill", "deceased", "skull", "bone", "skeleton", "remains", "track", "print", "footprint", "scat", "droppings", "feces", "zoo", "captive", "aquarium", "pet", "domestic"];
-                    if (badKeywords.some(keyword => lowerText.includes(keyword))) {
-                        console.warn("Manual Filter: Suspicious keyword. Retrying...");
-                        return fetchValidAnimal();
-                    }
+            // --- 4. CHECK COORDINATES & PHOTOS ---
+            const lat = obs.geojson?.coordinates[1] || obs.location?.split(',')[0];
+            const lng = obs.geojson?.coordinates[0] || obs.location?.split(',')[1];
+
+            if (!lat || !lng || !obs.photos || obs.photos.length === 0) return fetchValidAnimal(); 
+
+            const dateObj = new Date(obs.observed_on || obs.created_at);
+            const dateStr = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+            return {
+                id: obs.id, 
+                name: target.name,            
+                correctName: target.name, 
+                sciName: target.displayLatin || target.sciName,      
+                family: target.family || "Unknown Family", 
+                image: obs.photos[0].url.replace('square', 'original').replace('small', 'original').replace('medium', 'original').replace('large', 'original'),
+                lat: parseFloat(lat),
+                lng: parseFloat(lng),
+                location: obs.place_guess || "Unknown Wilderness",
+                recordedBy: obs.user?.login || obs.user?.name || "Unknown Observer",
+                link: obs.uri,
+                stats: {
+                    trait: target.clue || target.hint || "No hint available.",
+                    date: dateStr,
+                    year: dateObj.getFullYear()
                 }
-
-                const lat = obs.geojson?.coordinates[1] || obs.location?.split(',')[0];
-                const lng = obs.geojson?.coordinates[0] || obs.location?.split(',')[1];
-
-                if (!lat || !lng || !obs.photos || obs.photos.length === 0) return fetchValidAnimal(); 
-
-                const dateObj = new Date(obs.observed_on || obs.created_at);
-                const dateStr = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-
-                return {
-                            id: obs.id, // 3. STORE ID FOR REPORTING
-                            name: target.name,           
-                            correctName: target.name, 
-                            sciName: target.displayLatin || target.sciName,     
-                            family: target.family || "Unknown Family", 
-                            image: obs.photos[0].url.replace('square', 'original').replace('small', 'original').replace('medium', 'original').replace('large', 'original'),
-                            lat: parseFloat(lat),
-                            lng: parseFloat(lng),
-                            location: obs.place_guess || "Unknown Wilderness",
-                            recordedBy: obs.user?.login || obs.user?.name || "Unknown Observer",
-                            link: obs.uri,
-                            stats: {
-                                trait: target.clue || target.hint || "No hint available.",
-                                date: dateStr,
-                                year: dateObj.getFullYear()
-                            }
-                        };
-                    } catch (error) {
-                        console.error("Fetch failed:", error);
-                        return fetchValidAnimal();
-                    }
-                };
+            };
+        } catch (error) {
+            console.error("Fetch failed:", error);
+            return fetchValidAnimal();
+        }
+    };
 
 
                 const preloadNextGame = async () => {
@@ -678,6 +737,16 @@ const isLowQualityRecord = (record) => {
             console.error("Login failed:", error);
             sfx.play('error');
         }
+    };
+
+    // --- HELPER: Preload Image ---
+    const preloadImage = (src) => {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.src = src;
+            img.onload = () => resolve(src);
+            img.onerror = () => reject(src);
+        });
     };
 
 
@@ -789,18 +858,45 @@ const isLowQualityRecord = (record) => {
         }
     };
 
-    const handleReportIssue = () => {
+    const handleReportIssue = async () => {
         if (!animalData || !animalData.id) return;
+        
+        // 1. Confirm with user
+        if (!window.confirm("Report this listing as bad data (dead, blurry, or wrong location)?\n\nThis will remove it for everyone.")) {
+            return;
+        }
 
-        const reportedJSON = localStorage.getItem('wildGuess_reported');
-        let reported = reportedJSON ? JSON.parse(reportedJSON) : [];
+        try {
+            // 2. Update Local State (Immediate fix for this user)
+            const reportedJSON = localStorage.getItem('wildGuess_reported');
+            let reported = reportedJSON ? JSON.parse(reportedJSON) : [];
+            if (!reported.includes(animalData.id)) {
+                reported.push(animalData.id);
+                localStorage.setItem('wildGuess_reported', JSON.stringify(reported));
+            }
 
-        if (!reported.includes(animalData.id)) {
-            reported.push(animalData.id);
-            localStorage.setItem('wildGuess_reported', JSON.stringify(reported));
-            alert("Reported! This specific entry will not appear in your game again.");
-        } else {
-            alert("You have already reported this entry.");
+            // 3. Update Global Database (Fix for everyone)
+            const blacklistRef = doc(db, "system", "blacklist");
+            
+            // We use 'setDoc' with merge because the 'system/blacklist' document might not exist yet
+            await setDoc(blacklistRef, {
+                ids: arrayUnion(animalData.id)
+            }, { merge: true });
+
+            // 4. Log the report details for your review (Optional but good for analytics)
+            await addDoc(collection(db, "reports"), {
+                animalId: animalData.id,
+                animalName: animalData.correctName,
+                reason: "User Reported",
+                reportedBy: user ? user.uid : "anonymous",
+                timestamp: serverTimestamp()
+            });
+
+            alert("Report received. This listing has been removed from the ecosystem.");
+
+        } catch (error) {
+            console.error("Report failed:", error);
+            alert("Could not submit report. Please check connection.");
         }
     };
 
@@ -1404,7 +1500,16 @@ const isLowQualityRecord = (record) => {
             </div>
             );
         }
-        if (view === 'countdown') return <CountdownScreen onComplete={onCountdownComplete} stickers={menuStickers} isReady={!!animalData} />;
+        if (view === 'countdown') {
+            return (
+                <CountdownScreen 
+                    onComplete={onCountdownComplete} 
+                    stickers={menuStickers} 
+                    // UPDATED: Now waits for data AND the image
+                    isReady={!!animalData && isImageReady} 
+                />
+            );
+        }
 
         return (
             <div className="h-screen w-full flex flex-col md:flex-row bg-slate-100 overflow-hidden relative">
@@ -1698,20 +1803,22 @@ const isLowQualityRecord = (record) => {
                             <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Date</span><span className="text-slate-700 font-medium">{animalData?.stats?.date}</span></div>
                             <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Location</span><span className="text-slate-700 text-right max-w-[60%] font-medium">{animalData?.location}</span></div>
 
-                                {/* DATA SOURCE & DISCLAIMER */}
-                            <div className="pt-2 text-center border-t border-slate-200 mt-2">
-                                <p className="text-[10px] text-slate-400 leading-tight mb-2">Data source: <a href="https://www.inaturalist.org" target="_blank" className="underline hover:text-emerald-500">iNaturalist</a> (Research Grade). <br />Photos & coordinates are user-submitted.</p>
-
-                                <div className="bg-orange-50 border border-orange-100 rounded p-2 mt-2">
-                                    <p className="text-[9px] text-orange-600 font-bold uppercase mb-1">⚠️ Data Disclaimer</p>
-                                    <p className="text-[9px] text-slate-500 leading-snug mb-2">Occasional inaccuracies (e.g., GPS errors) or sensitive content may occur in community data.</p>
-                                    <button
-                                        onClick={handleReportIssue}
-                                        className="bg-white border border-slate-200 shadow-sm text-[9px] text-slate-600 font-bold uppercase px-2 py-1 rounded hover:bg-slate-50 hover:text-red-500 transition-colors flex items-center justify-center w-full gap-1"
-                                    >
-                                        <span>🚩</span> Report Bad Data / Location
-                                    </button>
+                            {/* DATA SOURCE & ACTIONS */}
+                            <div className="pt-4 mt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                                
+                                {/* Source Link */}
+                                <div>
+                                    Source: <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-600 underline">iNaturalist</a>
                                 </div>
+
+                                {/* Minimal Report Button */}
+                                <button
+                                    onClick={handleReportIssue}
+                                    className="flex items-center gap-1 text-slate-300 hover:text-red-400 transition-colors font-bold uppercase tracking-wider"
+                                    title="Report bad data, wrong location, or dead animal"
+                                >
+                                    <span>🚩</span> Report Issue
+                                </button>
                             </div>
                         </div>
                     </div>
