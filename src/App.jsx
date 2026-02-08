@@ -38,15 +38,15 @@
         }, []).sort((a, b) => a.name.localeCompare(b.name));
 
         // --- FAILSAFE DATA (Use when API is down) ---
-const FALLBACK_ANIMALS = [
-    {
-        id: "backup_1",
-        name: "Lion",
-        correctName: "Lion",
-        sciName: "Panthera leo",
-        family: "Felidae",
-        image: "https://upload.wikimedia.org/wikipedia/commons/7/73/Lion_waiting_in_Namibia.jpg",
-        lat: -2.333,
+        const FALLBACK_ANIMALS = [
+            {
+                id: "backup_1",
+                name: "Lion",
+                correctName: "Lion",
+                sciName: "Panthera leo",
+                family: "Felidae",
+                image: "https://upload.wikimedia.org/wikipedia/commons/7/73/Lion_waiting_in_Namibia.jpg",
+                lat: -2.333,
         lng: 34.833, // Serengeti
         location: "Serengeti National Park, Tanzania",
         recordedBy: "Offline_Backup",
@@ -98,67 +98,67 @@ const FALLBACK_ANIMALS = [
 ];
 
         // --- COMPONENT: MapClue (With Cinematic FlyTo Animation) ---
-        const MapClue = ({ lat, lng, zoom }) => {
-            const mapRef = useRef(null);
-            const mapInstanceRef = useRef(null);
-            const markerRef = useRef(null);
-            const resizeObserverRef = useRef(null);
+const MapClue = ({ lat, lng, zoom }) => {
+    const mapRef = useRef(null);
+    const mapInstanceRef = useRef(null);
+    const markerRef = useRef(null);
+    const resizeObserverRef = useRef(null);
 
             // 1. Initialize Map
-            useEffect(() => {
-                if (mapRef.current && !mapInstanceRef.current) {
-                    mapInstanceRef.current = L.map(mapRef.current, {
-                        zoomControl: false, attributionControl: false, dragging: false,
-                        scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, 
-                    }).setView([lat, lng], zoom);
+    useEffect(() => {
+        if (mapRef.current && !mapInstanceRef.current) {
+            mapInstanceRef.current = L.map(mapRef.current, {
+                zoomControl: false, attributionControl: false, dragging: false,
+                scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, 
+            }).setView([lat, lng], zoom);
 
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
-                        attribution: '&copy; OpenStreetMap &copy; CARTO',
-                        maxZoom: 19
-                    }).addTo(mapInstanceRef.current);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO',
+                maxZoom: 19
+            }).addTo(mapInstanceRef.current);
 
-                    const icon = L.divIcon({
-                        className: 'custom-pin', html: `<div></div>`,
-                        iconSize: [20, 20], iconAnchor: [10, 10]
-                    });
+            const icon = L.divIcon({
+                className: 'custom-pin', html: `<div></div>`,
+                iconSize: [20, 20], iconAnchor: [10, 10]
+            });
 
-                    markerRef.current = L.marker([lat, lng], { icon }).addTo(mapInstanceRef.current);
+            markerRef.current = L.marker([lat, lng], { icon }).addTo(mapInstanceRef.current);
 
-                    resizeObserverRef.current = new ResizeObserver(() => {
-                        if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
-                    });
-                    resizeObserverRef.current.observe(mapRef.current);
-                }
+            resizeObserverRef.current = new ResizeObserver(() => {
+                if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
+            });
+            resizeObserverRef.current.observe(mapRef.current);
+        }
 
                 // Cleanup function
-                return () => {
-                    if (resizeObserverRef.current) resizeObserverRef.current.disconnect();
-                    if (mapInstanceRef.current) {
-                        mapInstanceRef.current.remove();
-                        mapInstanceRef.current = null;
-                    }
-                };
-            }, []);
+        return () => {
+            if (resizeObserverRef.current) resizeObserverRef.current.disconnect();
+            if (mapInstanceRef.current) {
+                mapInstanceRef.current.remove();
+                mapInstanceRef.current = null;
+            }
+        };
+    }, []);
 
             // 2. React to props updates (Cinematic Zoom)
-            useEffect(() => {
-                if (mapInstanceRef.current && markerRef.current) {
+    useEffect(() => {
+        if (mapInstanceRef.current && markerRef.current) {
                     // Use flyTo for the smooth zoom effect
-                    mapInstanceRef.current.flyTo([lat, lng], zoom, {
-                        animate: true,
+            mapInstanceRef.current.flyTo([lat, lng], zoom, {
+                animate: true,
                         duration: 2.0 // 2 seconds for a nice slow cinematic feel
                     });
-                    markerRef.current.setLatLng([lat, lng]);
-                }
-            }, [lat, lng, zoom]);
+            markerRef.current.setLatLng([lat, lng]);
+        }
+    }, [lat, lng, zoom]);
 
-            return <div ref={mapRef} className="w-full h-full"></div>;
-        };
+    return <div ref={mapRef} className="w-full h-full"></div>;
+};
 
 
 // Helper to get date keys (e.g., "2023-10-25" and "2023-W43")
-        const getDateKeys = () => {
-            const now = new Date();
+const getDateKeys = () => {
+    const now = new Date();
 const dayKey = now.toISOString().split('T')[0]; // "2023-10-25"
 
 // Calculate Week Key
@@ -406,10 +406,10 @@ const isLowQualityRecord = (record) => {
             const [showToast, setShowToast] = useState(false);
 
 // --- UNLOCK ON CLUE CHANGE ---
-    useEffect(() => {
+            useEffect(() => {
         // When the index changes, release the lock so the user can play again
-        interactionLockRef.current = false;
-    }, [currentClueIndex]);
+                interactionLockRef.current = false;
+            }, [currentClueIndex]);
 
 
 
@@ -498,34 +498,34 @@ useEffect(() => {
 
 // --- SILENTLY LOAD JOURNAL ON LOGIN ---
     // This allows the game to know what you have found, so it can give you NEW animals.
-    useEffect(() => {
-        if (user) {
-            const loadUnlockedSilent = async () => {
-                try {
+useEffect(() => {
+    if (user) {
+        const loadUnlockedSilent = async () => {
+            try {
                     // Query for all winning games by this user
-                    const q = query(
-                        collection(db, "games"), 
-                        where("userId", "==", user.uid), 
-                        where("result", "==", "win")
+                const q = query(
+                    collection(db, "games"), 
+                    where("userId", "==", user.uid), 
+                    where("result", "==", "win")
                     );
-                    
-                    const snapshot = await getDocs(q);
-                    const newSet = new Set();
-                    
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (data.animalName) newSet.add(data.animalName);
-                    });
-                    
-                    setUnlockedAnimals(newSet);
-                    console.log("🔓 Silent Journal Load:", newSet.size, "animals unlocked.");
-                } catch (err) {
-                    console.error("Background journal load failed:", err);
-                }
-            };
-            loadUnlockedSilent();
-        }
-    }, [user]);
+
+                const snapshot = await getDocs(q);
+                const newSet = new Set();
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.animalName) newSet.add(data.animalName);
+                });
+
+                setUnlockedAnimals(newSet);
+                console.log("🔓 Silent Journal Load:", newSet.size, "animals unlocked.");
+            } catch (err) {
+                console.error("Background journal load failed:", err);
+            }
+        };
+        loadUnlockedSilent();
+    }
+}, [user]);
 
 useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -734,32 +734,32 @@ const fetchLeaderboard = async (tab = leaderboardTab) => {
 };
 
 // --- RESET TIMER ON NEW CLUE ---
-    useEffect(() => {
+useEffect(() => {
         // 1. Only run if game is active
-        if (view === 'game' && !isTutorialMode) {
-            startTimeForClue(); 
-        }
+    if (view === 'game' && !isTutorialMode) {
+        startTimeForClue(); 
+    }
 
         // 2. CLEANUP: Kill the timer if this effect re-runs
-        return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
-        };
-    }, [currentClueIndex, view, isTutorialMode]); 
+    return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+    };
+}, [currentClueIndex, view, isTutorialMode]); 
 
     // --- TIMER TOGGLE WATCHER ---
-    useEffect(() => {
-        if (view === 'game' && !isTutorialMode) {
-            if (timerEnabled) {
-                if (timeLeft <= 1) setTimeLeft(15);
-                startTimeForClue(false, true); 
-            } else {
-                if (timerRef.current) clearInterval(timerRef.current);
-            }
-        }
-        return () => {
+useEffect(() => {
+    if (view === 'game' && !isTutorialMode) {
+        if (timerEnabled) {
+            if (timeLeft <= 1) setTimeLeft(15);
+            startTimeForClue(false, true); 
+        } else {
             if (timerRef.current) clearInterval(timerRef.current);
-        };
-    }, [timerEnabled]);
+        }
+    }
+    return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+    };
+}, [timerEnabled]);
 
 // --- INITIALIZATION EFFECT (Optimized + Safety Lock Reset) ---
 useEffect(() => {
@@ -783,7 +783,7 @@ useEffect(() => {
 
         // 2. DELAY the heavy lifting by 100ms
         const heavyLiftingTimer = setTimeout(async () => {
-            
+
             let targetData = null;
 
             // A. Get Data (either preloaded or fetch new)
@@ -819,73 +819,73 @@ useEffect(() => {
 const fetchValidAnimal = async (attempt = 1) => {
         // --- FAILSAFE CHECK ---
         // If we've tried 3 times, assume API is down and use backup data.
-        if (attempt > 3) {
-            console.error("⚠️ API Down. Switching to Offline Mode.");
-            setIsOfflineMode(true); 
-            
-            // USE THE NEW IMPORTED DATA HERE:
-            return BACKUP_ANIMALS[Math.floor(Math.random() * BACKUP_ANIMALS.length)];
-        }
+    if (attempt > 3) {
+        console.error("⚠️ API Down. Switching to Offline Mode.");
+        setIsOfflineMode(true); 
 
-        const historyJSON = localStorage.getItem('wildGuess_played');
-        const reportedJSON = localStorage.getItem('wildGuess_reported'); 
-        
-        let played = historyJSON ? JSON.parse(historyJSON) : [];
-        let reported = reportedJSON ? JSON.parse(reportedJSON) : [];
+            // USE THE NEW IMPORTED DATA HERE:
+        return BACKUP_ANIMALS[Math.floor(Math.random() * BACKUP_ANIMALS.length)];
+    }
+
+    const historyJSON = localStorage.getItem('wildGuess_played');
+    const reportedJSON = localStorage.getItem('wildGuess_reported'); 
+
+    let played = historyJSON ? JSON.parse(historyJSON) : [];
+    let reported = reportedJSON ? JSON.parse(reportedJSON) : [];
 
         // 1. Create a pool of animals the user has NOT discovered yet
-        const undiscovered = ALL_ANIMALS_FLAT.filter(a => !unlockedAnimals.has(a.name));
-        const validUndiscovered = undiscovered.filter(a => !played.includes(a.name));
+    const undiscovered = ALL_ANIMALS_FLAT.filter(a => !unlockedAnimals.has(a.name));
+    const validUndiscovered = undiscovered.filter(a => !played.includes(a.name));
 
-        let target;
+    let target;
 
-        if (validUndiscovered.length > 0) {
-            target = validUndiscovered[Math.floor(Math.random() * validUndiscovered.length)];
+    if (validUndiscovered.length > 0) {
+        target = validUndiscovered[Math.floor(Math.random() * validUndiscovered.length)];
+    } else {
+        const available = ALL_ANIMALS_FLAT.filter(a => !played.includes(a.name));
+        if (available.length === 0) {
+            played = [];
+            localStorage.removeItem('wildGuess_played');
+            target = ALL_ANIMALS_FLAT[Math.floor(Math.random() * ALL_ANIMALS_FLAT.length)];
         } else {
-            const available = ALL_ANIMALS_FLAT.filter(a => !played.includes(a.name));
-            if (available.length === 0) {
-                played = [];
-                localStorage.removeItem('wildGuess_played');
-                target = ALL_ANIMALS_FLAT[Math.floor(Math.random() * ALL_ANIMALS_FLAT.length)];
-            } else {
-                target = available[Math.floor(Math.random() * available.length)];
-            }
+            target = available[Math.floor(Math.random() * available.length)];
         }
+    }
 
-        if (!played.includes(target.name)) {
-            played.push(target.name);
-            localStorage.setItem('wildGuess_played', JSON.stringify(played));
-        }
+    if (!played.includes(target.name)) {
+        played.push(target.name);
+        localStorage.setItem('wildGuess_played', JSON.stringify(played));
+    }
 
-        const randomPage = Math.floor(Math.random() * 30) + 1; 
+    const randomPage = Math.floor(Math.random() * 30) + 1; 
 
         // --- CORRECT iNATURALIST IDs ---
-        const excludeTerms = "19,23,25,26,27,28,29,30"; 
-        const allowedLicenses = "cc0,cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa";
-        const excludeTaxa = "47144,47126,47170"; 
+    const excludeTerms = "19,23,25,26,27,28,29,30"; 
+    const allowedLicenses = "cc0,cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa";
+    const excludeTaxa = "47144,47126,47170"; 
 
-        const fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_name=${target.sciName}&quality_grade=research&photos=true&per_page=1&page=${randomPage}&without_taxon_id=${excludeTaxa}&without_term_value_id=${excludeTerms}&photo_license=${allowedLicenses}`;
+    const fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_name=${target.sciName}&quality_grade=research&photos=true&per_page=1&page=${randomPage}&without_taxon_id=${excludeTaxa}&without_term_value_id=${excludeTerms}&photo_license=${allowedLicenses}`;
 
-        try {
-            const response = await fetch(fetchUrl);
-            
+    try {
+        const response = await fetch(fetchUrl);
+
             // Check if server is actually happy (Status 200)
-            if (!response.ok) {
-                throw new Error(`Server Error: ${response.status}`);
-            }
+        if (!response.ok) {
+            throw new Error(`Server Error: ${response.status}`);
+        }
 
-            const data = await response.json();
+        const data = await response.json();
 
-            if (!data.results || data.results.length === 0) {
-                console.warn("No valid results found, retrying...");
+        if (!data.results || data.results.length === 0) {
+            console.warn("No valid results found, retrying...");
                 // Pass the attempt counter to prevent infinite loops
-                return fetchValidAnimal(attempt + 1); 
-            }
+            return fetchValidAnimal(attempt + 1); 
+        }
 
-            const obs = data.results[0];
+        const obs = data.results[0];
 
             // --- BLACKLIST CHECK ---
-            if (reported.includes(obs.id) || globalBlacklist.includes(obs.id)) {
+        if (reported.includes(obs.id) || globalBlacklist.includes(obs.id)) {
                 return fetchValidAnimal(attempt); // Don't increment attempt for logic skips, only for network errors
             }
 
@@ -943,51 +943,51 @@ const fetchValidAnimal = async (attempt = 1) => {
     };
 
 
-const preloadNextGame = async () => {
-    try {
-        const data = await fetchValidAnimal();
-        setPreloadedData(data);
-    } catch (e) {
-        console.warn("Background fetch failed", e);
-    }
-};
+    const preloadNextGame = async () => {
+        try {
+            const data = await fetchValidAnimal();
+            setPreloadedData(data);
+        } catch (e) {
+            console.warn("Background fetch failed", e);
+        }
+    };
 
-const handleSaveProfile = async (chosenName) => {
-    if (isSaving) return; 
+    const handleSaveProfile = async (chosenName) => {
+        if (isSaving) return; 
 
-    if (!chosenName.trim()) {
-        alert("Please enter a valid name.");
-        return;
-    }
+        if (!chosenName.trim()) {
+            alert("Please enter a valid name.");
+            return;
+        }
 
-    if (!user) {
-       alert("Waiting for connection... please wait 2 seconds and try again.");
-       return;
-   }
+        if (!user) {
+         alert("Waiting for connection... please wait 2 seconds and try again.");
+         return;
+     }
 
-   setIsSaving(true);
-   console.log("📝 Attempting to create profile for:", user.uid);
+     setIsSaving(true);
+     console.log("📝 Attempting to create profile for:", user.uid);
 
-   try {
-    const userRef = doc(db, "users", user.uid);
+     try {
+        const userRef = doc(db, "users", user.uid);
 
             // Force a Write
-    await setDoc(userRef, {
-        username: chosenName,
-        createdAt: serverTimestamp(),
-        lastLogin: serverTimestamp(),
-        gamesPlayed: 0, 
-        totalScore: 0
-    }, { merge: true });
+        await setDoc(userRef, {
+            username: chosenName,
+            createdAt: serverTimestamp(),
+            lastLogin: serverTimestamp(),
+            gamesPlayed: 0, 
+            totalScore: 0
+        }, { merge: true });
 
-    console.log("✅ Write Complete! Reloading...");
+        console.log("✅ Write Complete! Reloading...");
 
             // FORCE RELOAD: This guarantees we load the "clean" profile from the database
-    window.location.reload(); 
+        window.location.reload(); 
 
-} catch (error) {
-    console.error("🔥 WRITE ERROR:", error);
-    alert("Save Failed: " + error.message);
+    } catch (error) {
+        console.error("🔥 WRITE ERROR:", error);
+        alert("Save Failed: " + error.message);
             setIsSaving(false); // UNLOCK the button so you can try again
         }
     };
@@ -1083,67 +1083,67 @@ const onCountdownComplete = () => {
 };
 
 const startTimeForClue = (forceStart = false, resume = false) => {
-        if (!resume) setTimeLeft(15); 
-        
-        // Clear any existing timer first to prevent overlaps
-        if (timerRef.current) clearInterval(timerRef.current);
-        
-        if (!timerEnabled && !forceStart) return;
-        if (!forceStart && isTutorialMode) return; 
+    if (!resume) setTimeLeft(15); 
 
-        timerRef.current = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) {
+        // Clear any existing timer first to prevent overlaps
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    if (!timerEnabled && !forceStart) return;
+    if (!forceStart && isTutorialMode) return; 
+
+    timerRef.current = setInterval(() => {
+        setTimeLeft(prev => {
+            if (prev <= 1) {
                     // --- SAFETY CHECK ---
                     // 1. Stop this specific timer immediately
-                    if (timerRef.current) clearInterval(timerRef.current);
+                if (timerRef.current) clearInterval(timerRef.current);
 
                     // 2. Check if something else already triggered the move
-                    if (interactionLockRef.current) return prev;
+                if (interactionLockRef.current) return prev;
 
                     // 3. Lock the game so the user can't double-tap during transition
-                    interactionLockRef.current = true;
+                interactionLockRef.current = true;
 
-                    advanceClue();
-                    return 15; 
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    };
+                advanceClue();
+                return 15; 
+            }
+            return prev - 1;
+        });
+    }, 1000);
+};
 
 
 const advanceClue = () => {
-        setCurrentClueIndex(prev => {
-            const nextIndex = prev + 1;
-            
-            // Only end game if we go PAST index 4 (Clue 5)
-            if (nextIndex > 4) { 
-                endGame('loss'); 
-                return 4; 
-            }
+    setCurrentClueIndex(prev => {
+        const nextIndex = prev + 1;
 
-            setGuessLocked(false);
-            
+            // Only end game if we go PAST index 4 (Clue 5)
+        if (nextIndex > 4) { 
+            endGame('loss'); 
+            return 4; 
+        }
+
+        setGuessLocked(false);
+
             // Update points (5, 4, 3, 2, 1)
-            setRoundScore(5 - nextIndex);
-            
-            return nextIndex;
-        });
-    };
+        setRoundScore(5 - nextIndex);
+
+        return nextIndex;
+    });
+};
 
 const skipClue = () => {
             // Safety Check: Prevent double-clicks
-            if (interactionLockRef.current) return;
-            
-            if (currentClueIndex < 4) {
+    if (interactionLockRef.current) return;
+
+    if (currentClueIndex < 4) {
                 interactionLockRef.current = true; // LOCK IT
                 setTimeLeft(15); 
                 advanceClue();
             }
         };
 
-const handleCategoryClick = (group) => {
+        const handleCategoryClick = (group) => {
     sfx.play('click'); // <--- Updated to sfx.play
     setSelectedGroup(group);
     if (isTutorialMode && tutorialStep === 4) {
@@ -1155,6 +1155,34 @@ const handleBackToCategories = () => {
     setSelectedGroup(null);
     if (isTutorialMode && (tutorialStep === 5 || tutorialStep === 6)) {
         setTutorialStep(4);
+    }
+};
+
+const handleShare = async () => {
+    // 1. Format the text nicely
+    const shareText = `I just discovered the ${animalData.correctName} in Wild Guess! 🐊\n\nScore: ${roundScore}/5\nLocation: ${animalData.location}\n\nCan you beat me? Play here: https://www.wildguess.co.za`;
+    
+    // 2. Try to use the native device share (Mobile)
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: 'Wild Guess - 5 Clues. 1 Animal. How wild is your guess?',
+                text: shareText,
+                url: 'https://www.wildguess.co.za'
+            });
+            logEvent(analytics, 'share', { method: 'native' });
+        } catch (err) {
+            console.log('Share dismissed', err);
+        }
+    } else {
+        // 3. Fallback for Desktop (Copy to Clipboard)
+        try {
+            await navigator.clipboard.writeText(shareText);
+            alert("Result copied to clipboard! You can now paste it anywhere.");
+            logEvent(analytics, 'share', { method: 'clipboard' });
+        } catch (err) {
+            console.error('Failed to copy', err);
+        }
     }
 };
 
@@ -1202,59 +1230,59 @@ const handleReportIssue = async () => {
 
 const handleFinalGuess = (animalName) => {
         // --- TUTORIAL MODE LOGIC (Keep exactly as is) ---
-        if (isTutorialMode) {
-            const isCorrect = animalName === animalData.correctName;
-            
-            if (tutorialStep === 5) {
-                if (isCorrect) {
-                    sfx.playWin(); 
-                    endGame('win');
-                    setTutorialStep(7);
-                } else {
-                    sfx.play('error', 0.3); 
-                    setWrongGuesses([animalName]);
-                    setCurrentClueIndex(4);
-                    setRoundScore(1);
-                    setTutorialStep(6);
-                }
-            } else if (tutorialStep === 6) {
-                if (isCorrect) {
-                    sfx.playWin(); 
-                    endGame('win');
-                    setTutorialStep(7);
-                } else {
-                    sfx.play('error', 0.3); 
-                    endGame('loss');
-                    setTutorialStep(8);
-                }
+    if (isTutorialMode) {
+        const isCorrect = animalName === animalData.correctName;
+
+        if (tutorialStep === 5) {
+            if (isCorrect) {
+                sfx.playWin(); 
+                endGame('win');
+                setTutorialStep(7);
+            } else {
+                sfx.play('error', 0.3); 
+                setWrongGuesses([animalName]);
+                setCurrentClueIndex(4);
+                setRoundScore(1);
+                setTutorialStep(6);
             }
-            return;
+        } else if (tutorialStep === 6) {
+            if (isCorrect) {
+                sfx.playWin(); 
+                endGame('win');
+                setTutorialStep(7);
+            } else {
+                sfx.play('error', 0.3); 
+                endGame('loss');
+                setTutorialStep(8);
+            }
         }
+        return;
+    }
 
         // --- STANDARD GAME LOGIC (With Safety Lock Fix) ---
-        if (guessLocked || view !== 'game') return;
+    if (guessLocked || view !== 'game') return;
 
         // 1. SAFETY LOCK: Check if we are already transitioning
-        if (interactionLockRef.current) return; 
+    if (interactionLockRef.current) return; 
 
-        if (animalName === animalData.correctName) {
-            sfx.playWin(); 
-            endGame('win');
+    if (animalName === animalData.correctName) {
+        sfx.playWin(); 
+        endGame('win');
+    } else {
+        sfx.play('error', 0.3); 
+        setWrongGuesses(prev => [...prev, animalName]);
+
+        if (currentClueIndex === 4) {
+            endGame('loss');
         } else {
-            sfx.play('error', 0.3); 
-            setWrongGuesses(prev => [...prev, animalName]);
-            
-            if (currentClueIndex === 4) {
-                endGame('loss');
-            } else {
                 // 2. ENGAGE LOCK: Prevent double-clicks from skipping the next clue
-                interactionLockRef.current = true; 
-                
-                setTimeLeft(15);
-                advanceClue();
-            }
+            interactionLockRef.current = true; 
+
+            setTimeLeft(15);
+            advanceClue();
         }
-    };
+    }
+};
 
 const endGame = async (result) => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -1273,38 +1301,38 @@ const endGame = async (result) => {
     setView('summary');
     
     if (user) {
-            try {
+        try {
                 // --- 1. UNIQUENESS CHECK ---
                 // Only run this check if we won. 
-                if (result === 'win') {
+            if (result === 'win') {
                     // Check if we have ALREADY found this animal in a winning game
-                    const checkQuery = query(
-                        collection(db, "games"), 
-                        where("userId", "==", user.uid),
-                        where("animalName", "==", animalData.correctName),
-                        where("result", "==", "win"),
+                const checkQuery = query(
+                    collection(db, "games"), 
+                    where("userId", "==", user.uid),
+                    where("animalName", "==", animalData.correctName),
+                    where("result", "==", "win"),
                         limit(1) // We only need to know if 1 exists
-                    );
-                    
-                    const snapshot = await getDocs(checkQuery);
-                    
-                    if (snapshot.empty) {
+                        );
+
+                const snapshot = await getDocs(checkQuery);
+
+                if (snapshot.empty) {
                         // If snapshot is empty, we haven't found it before!
-                        isNewDiscovery = true;
-                        console.log("🌟 New Species Registered in Journal!");
+                    isNewDiscovery = true;
+                    console.log("🌟 New Species Registered in Journal!");
 
                         // --- NEW: QUEUE FOR JOURNAL REVEAL ---
-                        const currentQueue = JSON.parse(localStorage.getItem('journal_queue') || '[]');
-                        if (!currentQueue.includes(animalData.correctName)) {
-                            currentQueue.push(animalData.correctName);
-                            localStorage.setItem('journal_queue', JSON.stringify(currentQueue));
-                            
+                    const currentQueue = JSON.parse(localStorage.getItem('journal_queue') || '[]');
+                    if (!currentQueue.includes(animalData.correctName)) {
+                        currentQueue.push(animalData.correctName);
+                        localStorage.setItem('journal_queue', JSON.stringify(currentQueue));
+
                             // UPDATE STATE IMMEDIATELY so the button shakes!
-                            setPendingJournalEntries(currentQueue); 
-                        }
-                    } else {
-                        console.log("ℹ️ Species already in Journal. No new registry.");
+                        setPendingJournalEntries(currentQueue); 
                     }
+                } else {
+                    console.log("ℹ️ Species already in Journal. No new registry.");
+                }
                 } // <--- THIS BRACE WAS LIKELY MISSING
 
                 // --- 2. Analytics ---
@@ -1485,18 +1513,18 @@ const endGame = async (result) => {
                                     </button>
                                 </div>
                             </div>
-                        ) : (
+                            ) : (
                             <button 
                                 onClick={() => setConfirmingExit(true)} 
                                 className="w-full bg-red-50 text-red-500 border border-red-200 font-bold py-3 rounded-xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
                             >
                                 <span>🚪</span> Exit Expedition
                             </button>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
-        );
+                );
     };
 
     {/* --- FIELD JOURNAL MODAL --- */}
@@ -1541,8 +1569,8 @@ const endGame = async (result) => {
                                     }`}
                                 >
                                     <div className="text-4xl md:text-5xl mb-2 transition-all duration-500"
-                                    style={!isUnlocked ? { 
-                                        color: 'transparent', 
+                                        style={!isUnlocked ? { 
+                                            color: 'transparent', 
                                         textShadow: '0 0 0 #94a3b8', // Creates the Grey Silhouette effect
                                         filter: 'blur(1px)' // Slight blur for mystery
                                     } : {}}
@@ -1551,13 +1579,13 @@ const endGame = async (result) => {
                                     {animal.emoji || animal.groupEmoji || "🐾"}
                                 </div>
 
-                                     <div className={`text-[9px] md:text-[10px] font-bold text-center uppercase tracking-tight leading-tight transition-opacity duration-500 ${
-                                        isUnlocked ? 'text-slate-700 opacity-100' : 'text-slate-400 opacity-0'
-                                    }`}>
-                                    {animal.name}
-                                </div>
+                                <div className={`text-[9px] md:text-[10px] font-bold text-center uppercase tracking-tight leading-tight transition-opacity duration-500 ${
+                                    isUnlocked ? 'text-slate-700 opacity-100' : 'text-slate-400 opacity-0'
+                                }`}>
+                                {animal.name}
                             </div>
-                            );
+                        </div>
+                        );
                         })}
                     </div>
                 </div>
@@ -1566,56 +1594,56 @@ const endGame = async (result) => {
         )}
 
         // --- DEFINE THE MODAL HERE ---
-        const journalModal = showJournal && (
-            <div className="fixed inset-0 z-[90] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
-                <div className="bg-amber-50 rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden border-4 border-amber-200 relative animate-pop">
+    const journalModal = showJournal && (
+        <div className="fixed inset-0 z-[90] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-amber-50 rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden border-4 border-amber-200 relative animate-pop">
 
             {/* Close Button */}
-                    <button 
-                        onClick={() => setShowJournal(false)}
-                        className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/10 hover:bg-black/20 rounded-full text-amber-900 font-bold flex items-center justify-center transition-colors text-xl"
-                    >
-                        ✕
-                    </button>
+                <button 
+                    onClick={() => setShowJournal(false)}
+                    className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/10 hover:bg-black/20 rounded-full text-amber-900 font-bold flex items-center justify-center transition-colors text-xl"
+                >
+                    ✕
+                </button>
 
             {/* Header */}
-                    <div className="bg-amber-100 p-6 border-b border-amber-200 text-center flex-shrink-0">
-                        <h2 className="font-freckle text-3xl text-amber-900 uppercase tracking-wide">Field Journal</h2>
-                        <div className="flex justify-center items-center gap-2 mt-2">
-                            <span className="text-amber-800/60 text-xs font-bold uppercase tracking-widest">
-                                Collection Progress:
-                            </span>
-                            <span className="bg-amber-300 text-amber-900 px-2 py-0.5 rounded text-xs font-black">
-                                {unlockedAnimals.size} / {ALL_ANIMALS_FLAT.length}
-                            </span>
-                        </div>
+                <div className="bg-amber-100 p-6 border-b border-amber-200 text-center flex-shrink-0">
+                    <h2 className="font-freckle text-3xl text-amber-900 uppercase tracking-wide">Field Journal</h2>
+                    <div className="flex justify-center items-center gap-2 mt-2">
+                        <span className="text-amber-800/60 text-xs font-bold uppercase tracking-widest">
+                            Collection Progress:
+                        </span>
+                        <span className="bg-amber-300 text-amber-900 px-2 py-0.5 rounded text-xs font-black">
+                            {unlockedAnimals.size} / {ALL_ANIMALS_FLAT.length}
+                        </span>
                     </div>
+                </div>
 
             {/* The Grid */}
-                    <div className="flex-1 overflow-y-auto custom-scroll p-4 md:p-8 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')]">
-                        <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
-                            {ALL_ANIMALS_FLAT.map((animal, idx) => {
-                                const isUnlocked = unlockedAnimals.has(animal.name);
+                <div className="flex-1 overflow-y-auto custom-scroll p-4 md:p-8 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')]">
+                    <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
+                        {ALL_ANIMALS_FLAT.map((animal, idx) => {
+                            const isUnlocked = unlockedAnimals.has(animal.name);
 
-                                return (
-                                    <div 
-                                        key={idx} 
-                                        className={`aspect-square rounded-xl flex flex-col items-center justify-center p-2 transition-all duration-500 border-2 ${
-                                            isUnlocked 
-                                            ? 'bg-white border-amber-200 shadow-md rotate-0 opacity-100' 
-                                            : 'bg-slate-100 border-slate-200 shadow-none opacity-60'
-                                        }`}
+                            return (
+                                <div 
+                                    key={idx} 
+                                    className={`aspect-square rounded-xl flex flex-col items-center justify-center p-2 transition-all duration-500 border-2 ${
+                                        isUnlocked 
+                                        ? 'bg-white border-amber-200 shadow-md rotate-0 opacity-100' 
+                                        : 'bg-slate-100 border-slate-200 shadow-none opacity-60'
+                                    }`}
+                                >
+                                    <div className="text-4xl md:text-5xl mb-2 transition-all duration-500"
+                                        style={!isUnlocked ? { 
+                                            color: 'transparent', 
+                                            textShadow: '0 0 0 #94a3b8', 
+                                            filter: 'blur(1px)'
+                                        } : {}}
                                     >
                                         <div className="text-4xl md:text-5xl mb-2 transition-all duration-500"
                                             style={!isUnlocked ? { 
                                                 color: 'transparent', 
-                                                textShadow: '0 0 0 #94a3b8', 
-                                                filter: 'blur(1px)'
-                                            } : {}}
-                                        >
-                                            <div className="text-4xl md:text-5xl mb-2 transition-all duration-500"
-                                    style={!isUnlocked ? { 
-                                        color: 'transparent', 
                                         textShadow: '0 0 0 #94a3b8', // Creates the Grey Silhouette effect
                                         filter: 'blur(1px)' // Slight blur for mystery
                                     } : {}}
@@ -1623,25 +1651,34 @@ const endGame = async (result) => {
                                     {/* Simple, clean, direct access */}
                                     {animal.emoji || animal.groupEmoji || "🐾"}
                                 </div>
-                                       </div>
-
-                                       <div className={`text-[9px] md:text-[10px] font-bold text-center uppercase tracking-tight leading-tight transition-opacity duration-500 ${
-                                        isUnlocked ? 'text-slate-700 opacity-100' : 'text-slate-400 opacity-0'
-                                    }`}>
-                                    {animal.name}
-                                </div>
                             </div>
-                            );
-                            })}
+
+                            <div className={`text-[9px] md:text-[10px] font-bold text-center uppercase tracking-tight leading-tight transition-opacity duration-500 ${
+                                isUnlocked ? 'text-slate-700 opacity-100' : 'text-slate-400 opacity-0'
+                            }`}>
+                            {animal.name}
                         </div>
+                    </div>
+                    );
+                        })}
                     </div>
                 </div>
             </div>
-            );
+        </div>
+        );
 
         if (view === 'menu') {
             return (
                 <div className="h-screen w-full bg-gradient-to-b from-green-900 to-green-700 overflow-x-hidden overflow-y-auto md:overflow-hidden relative flex flex-col md:flex-row items-center justify-start md:justify-center p-4 gap-6 py-12 md:py-0">   
+            {/* --- SETTINGS BUTTON --- */}
+<button 
+    onClick={() => { sfx.play('click'); setShowSettings(true); }}
+    className="absolute top-4 right-4 z-50 w-12 h-12 bg-white/10 backdrop-blur-md border-2 border-white/20 rounded-full shadow-lg text-white flex items-center justify-center hover:bg-white/20 hover:scale-110 hover:rotate-90 transition-all duration-500 group"
+    title="Settings"
+>
+    <span className="text-2xl drop-shadow-md">⚙️</span>
+</button>
+
             {/* BACKGROUND STICKERS (Kept Global) */}
                     <div className="fixed inset-0 overflow-hidden pointer-events-none">
                         {menuStickers.map((sticker) => (
@@ -1752,10 +1789,10 @@ const endGame = async (result) => {
                                         </div>
                                      {/* Allow Guests to open journal too if you want */}
                                         {/* 2. JOURNAL (Secondary) */}
-                                <button 
-                                    onClick={fetchJournal} 
-                                    className={`w-full font-bold py-3 rounded-xl transition border-2 flex items-center justify-center gap-2 ${
-                                        pendingJournalEntries.length > 0 
+                                        <button 
+                                            onClick={fetchJournal} 
+                                            className={`w-full font-bold py-3 rounded-xl transition border-2 flex items-center justify-center gap-2 ${
+                                                pendingJournalEntries.length > 0 
                                         ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-wiggle shadow-lg' // Active State
                                         : 'bg-amber-100 border-amber-200 text-amber-900 hover:bg-amber-200' // Default State
                                     }`}
@@ -1763,8 +1800,8 @@ const endGame = async (result) => {
                                     <span className="text-lg">📖</span> 
                                     {pendingJournalEntries.length > 0 ? "NEW ENTRY FOUND!" : "OPEN FIELD JOURNAL"}
                                 </button>
-                                        </>
-                                        )}
+                                </>
+                                )}
                                     </>
                                     )}
                                 </div>
@@ -1915,6 +1952,9 @@ const endGame = async (result) => {
                                     </div>
                                 </div>
                                 )}
+        {/* SETTINGS MODAL (Rendered if showSettings is true) */}
+                {showSettings && <SettingsModal />}
+
         {journalModal}
     </div>
     );
@@ -1940,136 +1980,136 @@ const endGame = async (result) => {
         {/* --- LEFT PANEL: MAP & CLUES --- */}
             <div className="flex-1 flex flex-col bg-white m-2 rounded-xl shadow-sm overflow-hidden relative order-1">
                 {/* PROGRESS BAR (Visual Fix) */}
-                    <div className="h-2 bg-slate-200 w-full flex-shrink-0">
-                        <div 
-                            className={`h-full transition-all duration-1000 linear ${timerEnabled ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} 
-                            style={{ width: `${(timeLeft / 15) * 100}%` }}
-                        ></div>
+                <div className="h-2 bg-slate-200 w-full flex-shrink-0">
+                    <div 
+                        className={`h-full transition-all duration-1000 linear ${timerEnabled ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} 
+                        style={{ width: `${(timeLeft / 15) * 100}%` }}
+                    ></div>
                     </div>
-                <div className="flex-1 relative">
+                    <div className="flex-1 relative">
 
                     {/* --- SINGLE SETTINGS BUTTON (Top Right) --- */}
-    <button 
-        onClick={() => { sfx.play('click'); setShowSettings(true); }}
-        className="absolute top-2 right-2 z-[60] w-10 h-10 bg-white/90 border-2 border-slate-300 rounded-full shadow-md text-slate-600 font-bold flex items-center justify-center hover:bg-slate-50 active:scale-95 transition-all"
-    >
-        <span className="text-xl">⚙️</span>
-    </button>
+                        <button 
+                            onClick={() => { sfx.play('click'); setShowSettings(true); }}
+                            className="absolute top-2 right-2 z-[60] w-10 h-10 bg-white/90 border-2 border-slate-300 rounded-full shadow-md text-slate-600 font-bold flex items-center justify-center hover:bg-slate-50 active:scale-95 transition-all"
+                        >
+                            <span className="text-xl">⚙️</span>
+                        </button>
 
     {/* --- RENDER SETTINGS MODAL --- */}
-    {showSettings && <SettingsModal />}
+                        {showSettings && <SettingsModal />}
 
 
  {/* OFFLINE MODE NOTIFICATION */}
-                {isOfflineMode && (
-                    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[80] bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-bounce flex items-center gap-2 whitespace-nowrap">
-                        <span>⚠️</span> Server Offline: Using Backup Data
-                    </div>
-                )}   
-                
+                        {isOfflineMode && (
+                            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[80] bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-bounce flex items-center gap-2 whitespace-nowrap">
+                                <span>⚠️</span> Server Offline: Using Backup Data
+                            </div>
+                            )}   
+
 
                 {/* TOAST NOTIFICATION */}
-{showToast && (
-    <div className="absolute top-12 right-2 z-[70] bg-slate-800 text-white text-xs px-3 py-2 rounded-lg shadow-lg animate-pop max-w-[150px] text-right">
-        Tutorial hidden.<br />Tap "OFF" to restart.
-    </div>
-    )}
+                        {showToast && (
+                            <div className="absolute top-12 right-2 z-[70] bg-slate-800 text-white text-xs px-3 py-2 rounded-lg shadow-lg animate-pop max-w-[150px] text-right">
+                                Tutorial hidden.<br />Tap "OFF" to restart.
+                            </div>
+                            )}
 
-<div className="absolute inset-0" key={gameId}>
+                        <div className="absolute inset-0" key={gameId}>
                     {/* Map Layer */}
-    <div className={`absolute inset-0 transition-opacity duration-500 ${currentClueIndex >= 0 ? 'opacity-100' : 'opacity-0'}`}>
-        {animalData && (
-            <MapClue
-                lat={animalData.lat}
-                lng={animalData.lng}
-                zoom={currentClueIndex === 0 ? 2 : (currentClueIndex === 1 ? 5 : 11)}
-                />
-                )}
-    </div>
+                            <div className={`absolute inset-0 transition-opacity duration-500 ${currentClueIndex >= 0 ? 'opacity-100' : 'opacity-0'}`}>
+                                {animalData && (
+                                    <MapClue
+                                        lat={animalData.lat}
+                                        lng={animalData.lng}
+                                        zoom={currentClueIndex === 0 ? 2 : (currentClueIndex === 1 ? 5 : 11)}
+                                        />
+                                        )}
+                            </div>
                     {/* Photo Background Layer (Desktop only) */}
-    <div className={`hidden md:block absolute inset-0 z-10 transition-opacity duration-1000 bg-slate-200 overflow-hidden ${currentClueIndex >= 4 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        {animalData?.image && (
-            <div className="w-full h-full relative">
+                            <div className={`hidden md:block absolute inset-0 z-10 transition-opacity duration-1000 bg-slate-200 overflow-hidden ${currentClueIndex >= 4 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                                {animalData?.image && (
+                                    <div className="w-full h-full relative">
                 {/* Added blur-xl and scale-110 to blur and hide edges */}
-                <img 
-                    src={animalData.image} 
-                    className="w-full h-full object-cover blur-xl scale-110 transform" 
-                    alt="Revealed Animal" 
-                />
-                <div className="absolute inset-0 bg-black/10"></div>
-            </div>
-            )}
-    </div>
-</div>
+                                        <img 
+                                            src={animalData.image} 
+                                            className="w-full h-full object-cover blur-xl scale-110 transform" 
+                                            alt="Revealed Animal" 
+                                        />
+                                        <div className="absolute inset-0 bg-black/10"></div>
+                                    </div>
+                                    )}
+                            </div>
+                        </div>
 
-<div className="hidden md:block absolute top-0 left-0 right-0 z-30 pt-6 text-center pointer-events-none">
-    <h2 className="text-3xl md:text-4xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-tight uppercase leading-none">Take a <span className="text-emerald-400">Wild Guess</span></h2>
-    <p className="text-white text-sm font-bold mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] uppercase tracking-widest">Can you identify this animal?</p>
-</div>
+                        <div className="hidden md:block absolute top-0 left-0 right-0 z-30 pt-6 text-center pointer-events-none">
+                            <h2 className="text-3xl md:text-4xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-tight uppercase leading-none">Take a <span className="text-emerald-400">Wild Guess</span></h2>
+                            <p className="text-white text-sm font-bold mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] uppercase tracking-widest">Can you identify this animal?</p>
+                        </div>
 
                 {/* CLUES CONTAINER */}
-<div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center pt-12 pb-2 px-2 md:pt-24 md:pb-4 md:px-4">
+                        <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center pt-12 pb-2 px-2 md:pt-24 md:pb-4 md:px-4">
 
                     {/* Clue 5: BLURRED IMAGE + QUESTION MARK */}
-    {currentClueIndex === 4 && animalData?.image && (
-        <div className="w-full flex justify-center mb-2 md:mb-8 order-first pointer-events-auto">
-            <div className="group relative bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-48 h-32 md:w-64 md:h-48 flex-shrink-0 animate-pop transform hover:scale-105 transition-transform cursor-pointer">
+                            {currentClueIndex === 4 && animalData?.image && (
+                                <div className="w-full flex justify-center mb-2 md:mb-8 order-first pointer-events-auto">
+                                    <div className="group relative bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-48 h-32 md:w-64 md:h-48 flex-shrink-0 animate-pop transform hover:scale-105 transition-transform cursor-pointer">
 
                     {/* The Blurred Photo */}
-                <img 
-                    src={animalData.image} 
-                    className="w-full h-full object-cover blur-[2px] scale-110 transition-all duration-700 group-hover:blur-none group-hover:scale-105" 
-                    alt="Mystery Clue" 
-                />
+                                        <img 
+                                            src={animalData.image} 
+                                            className="w-full h-full object-cover blur-[2px] scale-110 transition-all duration-700 group-hover:blur-none group-hover:scale-105" 
+                                            alt="Mystery Clue" 
+                                        />
 
                     {/* The Question Mark Overlay */}
-                <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                    <span className="text-6xl md:text-8xl font-black text-white/90 drop-shadow-md group-hover:opacity-50 transition-opacity">
-                        ?
-                    </span>
-                </div>
+                                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                                            <span className="text-6xl md:text-8xl font-black text-white/90 drop-shadow-md group-hover:opacity-50 transition-opacity">
+                                                ?
+                                            </span>
+                                        </div>
 
-            </div>
-        </div>
-        )}
+                                    </div>
+                                </div>
+                                )}
 
                     {/* Clue 2: Location (TOP) */}
-    <div className={`order-1 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 1 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
-        <div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-4 md:py-2 rounded-lg shadow-xl border border-white/50">
-            <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block text-center tracking-wider">Location</span>
-            <span className="text-slate-800 font-bold text-xs md:text-lg leading-tight block">{animalData?.location}</span>
-        </div>
-    </div>
+                            <div className={`order-1 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 1 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
+                                <div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-4 md:py-2 rounded-lg shadow-xl border border-white/50">
+                                    <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block text-center tracking-wider">Location</span>
+                                    <span className="text-slate-800 font-bold text-xs md:text-lg leading-tight block">{animalData?.location}</span>
+                                </div>
+                            </div>
 
                     {/* Clue 4: Hint (PUSHED TO BOTTOM) */}
-    <div className={`order-2 w-full flex justify-center md:static mt-auto mb-2 md:mb-4 transition-all duration-500 transform ${currentClueIndex >= 3 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}`}>
-        <div className="bg-emerald-50/95 backdrop-blur-md px-3 py-1.5 md:px-5 md:py-3 rounded-lg shadow-xl border border-emerald-100 max-w-sm text-center mx-4">
-            <span className="text-[8px] md:text-[10px] font-bold text-emerald-600 uppercase block mb-0.5 tracking-wider">Hint</span>
-            <div className="text-emerald-900 font-medium italic text-xs md:text-lg leading-tight">"{animalData?.stats?.trait}"</div>
-        </div>
-    </div>
+                            <div className={`order-2 w-full flex justify-center md:static mt-auto mb-2 md:mb-4 transition-all duration-500 transform ${currentClueIndex >= 3 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}`}>
+                                <div className="bg-emerald-50/95 backdrop-blur-md px-3 py-1.5 md:px-5 md:py-3 rounded-lg shadow-xl border border-emerald-100 max-w-sm text-center mx-4">
+                                    <span className="text-[8px] md:text-[10px] font-bold text-emerald-600 uppercase block mb-0.5 tracking-wider">Hint</span>
+                                    <div className="text-emerald-900 font-medium italic text-xs md:text-lg leading-tight">"{animalData?.stats?.trait}"</div>
+                                </div>
+                            </div>
 
                     {/* Clue 3: Taxonomy (VERY BOTTOM) */}
-    <div className={`order-3 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 2 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
-        <div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-6 md:py-3 rounded-lg shadow-xl border border-white/50 text-center min-w-[160px] md:min-w-[220px]">
-            <div className="mb-0.5 md:mb-2">
-                <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Family</span>
-                <span className="text-indigo-600 font-mono font-bold text-xs md:text-lg leading-none">{animalData?.family}</span>
-            </div>
-            <div className="border-t border-slate-200/50 pt-0.5 md:pt-2">
-                <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Scientific Name</span>
-                <span className="text-emerald-800 italic font-serif text-sm md:text-xl leading-none">
-                    {animalData?.displayLatin || animalData?.sciName}
-                </span>
-            </div>
-        </div>
-    </div>
+                            <div className={`order-3 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 2 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
+                                <div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-6 md:py-3 rounded-lg shadow-xl border border-white/50 text-center min-w-[160px] md:min-w-[220px]">
+                                    <div className="mb-0.5 md:mb-2">
+                                        <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Family</span>
+                                        <span className="text-indigo-600 font-mono font-bold text-xs md:text-lg leading-none">{animalData?.family}</span>
+                                    </div>
+                                    <div className="border-t border-slate-200/50 pt-0.5 md:pt-2">
+                                        <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Scientific Name</span>
+                                        <span className="text-emerald-800 italic font-serif text-sm md:text-xl leading-none">
+                                            {animalData?.displayLatin || animalData?.sciName}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
 
-</div>
-</div>
+                        </div>
+                    </div>
 
             {/* FOOTER */}
-<div className="h-14 bg-white border-t border-slate-100 flex items-center justify-between px-4 z-10 flex-shrink-0">
+                    <div className="h-14 bg-white border-t border-slate-100 flex items-center justify-between px-4 z-10 flex-shrink-0">
     {/* PROMINENT POINTS DISPLAY */}
                         <div className="flex items-center gap-3 bg-emerald-50 border-2 border-emerald-200 px-3 py-1 rounded-lg shadow-sm">
                             <div className="flex flex-col items-end leading-none">
@@ -2080,146 +2120,146 @@ const endGame = async (result) => {
                                 {roundScore}
                             </div>
                         </div>
-    <div className="flex gap-2">
+                        <div className="flex gap-2">
                     {/* Dynamic Give Up Button */}
-        <button
-            onMouseEnter={() => sfx.play('hover')}
-            onClick={() => endGame('surrender')}
-            disabled={isTutorialMode}
-            className={`px-4 py-2 text-xs rounded-full transition-all duration-300 ${currentClueIndex === 4
-                ? 'bg-red-500 text-white font-black tracking-widest shadow-lg hover:bg-red-600 hover:scale-105 animate-pulse'
-                : 'text-slate-400 hover:text-red-500 font-medium'
-            } ${isTutorialMode ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
-        >
-            GIVE UP
-        </button>
+                            <button
+                                onMouseEnter={() => sfx.play('hover')}
+                                onClick={() => endGame('surrender')}
+                                disabled={isTutorialMode}
+                                className={`px-4 py-2 text-xs rounded-full transition-all duration-300 ${currentClueIndex === 4
+                                    ? 'bg-red-500 text-white font-black tracking-widest shadow-lg hover:bg-red-600 hover:scale-105 animate-pulse'
+                                    : 'text-slate-400 hover:text-red-500 font-medium'
+                                } ${isTutorialMode ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
+                            >
+                                GIVE UP
+                            </button>
 
                     {/* Next Clue Button - Hidden on Final Clue (Index 4) */}
-        {currentClueIndex < 4 && (
-            <button
-                onMouseEnter={() => sfx.play('hover', 0.2)}
-                onClick={() => { sfx.play('click', 0.2); skipClue(); }}
-                disabled={isTutorialMode}
-                className={`bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-xs font-bold hover:bg-blue-100 transition ${isTutorialMode ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
-            >
-                {timerEnabled ? 'NEXT CLUE' : 'REVEAL NEXT'}
-            </button>
-            )}
-    </div>
-</div>
-</div>
-
-        {/* --- RIGHT PANEL: SIDEBAR (ANSWERS) --- */}
-<div className="h-[45%] md:h-full md:w-96 bg-slate-50 overflow-hidden border-t md:border-t-0 md:border-l border-slate-200 order-2 flex flex-col shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative">
-
-            {/* SEARCH BAR (Sticky Top) */}
-    <div className="p-2 border-b border-slate-200 bg-slate-100 flex-shrink-0 z-10">
-        <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
-            <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    if (isTutorialMode && tutorialStep === 4) {
-                        nextTutorialStep();
-                    }
-                }}
-                placeholder="Search animals..."
-                onClick={() => sfx.play('click', 0.2)}
-                disabled={guessLocked || (isTutorialMode && tutorialStep < 4)}
-                    className="w-full pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm disabled:opacity-50 disabled:bg-slate-50"
-                />
-                {searchTerm && (
-                    <button
-                        onClick={() => setSearchTerm('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold px-1"
-                    >
-                        ✕
-                    </button>
-                    )}
-            </div>
-        </div>
-
-            {/* SCROLLABLE LIST AREA */}
-        <div className="flex-1 overflow-y-auto custom-scroll p-2 content-start">
-
-                {/* SCENARIO 1: SEARCH RESULTS */}
-            {searchTerm ? (
-                <div className="grid grid-cols-2 gap-2">
-                    {ALL_ANIMALS_FLAT.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).map((animal, idx) => {
-                        const isWrong = wrongGuesses.includes(animal.name);
-                        return (
-                            <button
-                                key={idx}
-                                disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)}
-                                onClick={() => { handleFinalGuess(animal.name); setSearchTerm(''); }}
-                                className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all py-2 px-2 text-xs text-left flex items-center ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}
-                            >
-                                <span className="mr-2 text-base">{animal.groupEmoji}</span>
-                                <span className="truncate">{animal.name}</span>
-                            </button>
-                            );
-                    })}
-                    {ALL_ANIMALS_FLAT.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
-                        <div className="col-span-2 text-center text-slate-400 text-xs py-4 italic">No animals found</div>
-                        )}
-                </div>
-                ) : (
-                    /* SCENARIO 2: NORMAL NAVIGATION */
-                <>
-                {!selectedGroup && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 h-full content-start">
-                        <button
-                            onClick={() => handleCategoryClick("ALL")}
-                            disabled={guessLocked || (isTutorialMode && tutorialStep < 4)}
-                                className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-slate-200 text-slate-700 hover:bg-slate-300 hover:shadow-md cursor-pointer border border-slate-300 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
+                            {currentClueIndex < 4 && (
+                                <button
+                                    onMouseEnter={() => sfx.play('hover', 0.2)}
+                                    onClick={() => { sfx.play('click', 0.2); skipClue(); }}
+                                    disabled={isTutorialMode}
+                                    className={`bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-xs font-bold hover:bg-blue-100 transition ${isTutorialMode ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
                                 >
-                                    <span className="text-xl mr-2 md:mr-0 md:mb-1">🌎</span><span className="text-[10px] md:text-[10px] font-bold uppercase tracking-tight text-left md:text-center leading-tight">All Animals</span>
+                                    {timerEnabled ? 'NEXT CLUE' : 'REVEAL NEXT'}
                                 </button>
-                                {ANIMAL_GROUPS.map((group, idx) => (
-                                    <button
-                                        key={idx}
-                                        disabled={guessLocked || (isTutorialMode && tutorialStep < 4)}
-                                            onClick={() => handleCategoryClick(group)}
-                                            className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-white hover:bg-emerald-50 hover:shadow-md cursor-pointer border border-slate-100 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
-                                            >
-                                                <span className="text-xl mr-2 md:mr-0 md:mb-1">{group.emoji}</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight text-left md:text-center leading-tight">{group.name}</span>
-                                            </button>
-                                            ))}
-                            </div>
-                            )}
-                {selectedGroup && (
-                    <div className="flex flex-col h-full">
-                        <button
-                            onMouseEnter={() => sfx.play('hover', 0.1)}
-                            onClick={() => { sfx.play('click', 0.2); handleBackToCategories(); }}
-                            disabled={isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6}
-                            className={`mb-2 flex items-center justify-center bg-slate-100 border border-slate-200 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 text-[10px] uppercase font-bold px-2 py-1.5 flex-shrink-0 transition-colors ${(isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6) ? 'opacity-50' : ''}`}
-                        >
-                            ← Back to Categories
-                        </button>
-                        <div className="text-center mb-2 flex-shrink-0"><span className="text-xl inline-block mr-2">{selectedGroup === "ALL" ? "🌎" : selectedGroup.emoji}</span><span className="text-sm font-bold text-slate-700">{selectedGroup === "ALL" ? "All Animals" : selectedGroup.name}</span></div>
-                        <div className={`grid gap-2 flex-1 content-start ${selectedGroup === "ALL" ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                            {(selectedGroup === "ALL" ? ALL_ANIMALS_FLAT : selectedGroup.animals).map((animal, idx) => {
-                                const isWrong = wrongGuesses.includes(animal.name);
-                                return (
-                                    <button
-                                        key={idx}
-                                        disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)}
-                                        onClick={() => handleFinalGuess(animal.name)}
-                                        className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all leading-tight ${selectedGroup === "ALL" ? 'py-1 px-1 text-[9px] h-10 flex flex-col justify-center items-center' : 'py-2 px-2 text-xs'} ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}
-                                    >
-                                        {selectedGroup === "ALL" && <span className="opacity-60 text-xs mb-0.5">{animal.groupEmoji}</span>}
-                                        <span className="truncate w-full text-center">{animal.name}</span>
-                                    </button>
-                                    )
-                            })}
+                                )}
                         </div>
                     </div>
-                    )}
-                </>
-                )}
+                </div>
+
+        {/* --- RIGHT PANEL: SIDEBAR (ANSWERS) --- */}
+                <div className="h-[45%] md:h-full md:w-96 bg-slate-50 overflow-hidden border-t md:border-t-0 md:border-l border-slate-200 order-2 flex flex-col shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative">
+
+            {/* SEARCH BAR (Sticky Top) */}
+                    <div className="p-2 border-b border-slate-200 bg-slate-100 flex-shrink-0 z-10">
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
+                                    if (isTutorialMode && tutorialStep === 4) {
+                                        nextTutorialStep();
+                                    }
+                                }}
+                                placeholder="Search animals..."
+                                onClick={() => sfx.play('click', 0.2)}
+                                disabled={guessLocked || (isTutorialMode && tutorialStep < 4)}
+                                    className="w-full pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm disabled:opacity-50 disabled:bg-slate-50"
+                                />
+                                {searchTerm && (
+                                    <button
+                                        onClick={() => setSearchTerm('')}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold px-1"
+                                    >
+                                        ✕
+                                    </button>
+                                    )}
+                            </div>
+                        </div>
+
+            {/* SCROLLABLE LIST AREA */}
+                        <div className="flex-1 overflow-y-auto custom-scroll p-2 content-start">
+
+                {/* SCENARIO 1: SEARCH RESULTS */}
+                            {searchTerm ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                    {ALL_ANIMALS_FLAT.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).map((animal, idx) => {
+                                        const isWrong = wrongGuesses.includes(animal.name);
+                                        return (
+                                            <button
+                                                key={idx}
+                                                disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)}
+                                                onClick={() => { handleFinalGuess(animal.name); setSearchTerm(''); }}
+                                                className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all py-2 px-2 text-xs text-left flex items-center ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}
+                                            >
+                                                <span className="mr-2 text-base">{animal.groupEmoji}</span>
+                                                <span className="truncate">{animal.name}</span>
+                                            </button>
+                                            );
+                                    })}
+                                    {ALL_ANIMALS_FLAT.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                                        <div className="col-span-2 text-center text-slate-400 text-xs py-4 italic">No animals found</div>
+                                        )}
+                                </div>
+                                ) : (
+                    /* SCENARIO 2: NORMAL NAVIGATION */
+                                <>
+                                {!selectedGroup && (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 h-full content-start">
+                                        <button
+                                            onClick={() => handleCategoryClick("ALL")}
+                                            disabled={guessLocked || (isTutorialMode && tutorialStep < 4)}
+                                                className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-slate-200 text-slate-700 hover:bg-slate-300 hover:shadow-md cursor-pointer border border-slate-300 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
+                                                >
+                                                    <span className="text-xl mr-2 md:mr-0 md:mb-1">🌎</span><span className="text-[10px] md:text-[10px] font-bold uppercase tracking-tight text-left md:text-center leading-tight">All Animals</span>
+                                                </button>
+                                                {ANIMAL_GROUPS.map((group, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        disabled={guessLocked || (isTutorialMode && tutorialStep < 4)}
+                                                            onClick={() => handleCategoryClick(group)}
+                                                            className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-white hover:bg-emerald-50 hover:shadow-md cursor-pointer border border-slate-100 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
+                                                            >
+                                                                <span className="text-xl mr-2 md:mr-0 md:mb-1">{group.emoji}</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight text-left md:text-center leading-tight">{group.name}</span>
+                                                            </button>
+                                                            ))}
+                                            </div>
+                                            )}
+                                {selectedGroup && (
+                                    <div className="flex flex-col h-full">
+                                        <button
+                                            onMouseEnter={() => sfx.play('hover', 0.1)}
+                                            onClick={() => { sfx.play('click', 0.2); handleBackToCategories(); }}
+                                            disabled={isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6}
+                                            className={`mb-2 flex items-center justify-center bg-slate-100 border border-slate-200 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 text-[10px] uppercase font-bold px-2 py-1.5 flex-shrink-0 transition-colors ${(isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6) ? 'opacity-50' : ''}`}
+                                        >
+                                            ← Back to Categories
+                                        </button>
+                                        <div className="text-center mb-2 flex-shrink-0"><span className="text-xl inline-block mr-2">{selectedGroup === "ALL" ? "🌎" : selectedGroup.emoji}</span><span className="text-sm font-bold text-slate-700">{selectedGroup === "ALL" ? "All Animals" : selectedGroup.name}</span></div>
+                                        <div className={`grid gap-2 flex-1 content-start ${selectedGroup === "ALL" ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                                            {(selectedGroup === "ALL" ? ALL_ANIMALS_FLAT : selectedGroup.animals).map((animal, idx) => {
+                                                const isWrong = wrongGuesses.includes(animal.name);
+                                                return (
+                                                    <button
+                                                        key={idx}
+                                                        disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)}
+                                                        onClick={() => handleFinalGuess(animal.name)}
+                                                        className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all leading-tight ${selectedGroup === "ALL" ? 'py-1 px-1 text-[9px] h-10 flex flex-col justify-center items-center' : 'py-2 px-2 text-xs'} ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}
+                                                    >
+                                                        {selectedGroup === "ALL" && <span className="opacity-60 text-xs mb-0.5">{animal.groupEmoji}</span>}
+                                                        <span className="truncate w-full text-center">{animal.name}</span>
+                                                    </button>
+                                                    )
+                                            })}
+                                        </div>
+                                    </div>
+                                    )}
+                                </>
+                                )}
     </div>
 </div>
 
@@ -2258,22 +2298,28 @@ const endGame = async (result) => {
                     </div>
                 </div>
                 {/* SUMMARY FOOTER */}
-                            <div className="p-4 bg-white border-t border-slate-100 flex-shrink-0 flex flex-col gap-2">
-                                
-                                {/* 1. PLAY AGAIN (Primary) */}
-                                <button 
-                                    onClick={startGame} 
-                                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-200 transform hover:scale-[1.02]"
-                                >
-                                    PLAY AGAIN
-                                </button>
+                <div className="p-4 bg-white border-t border-slate-100 flex-shrink-0 flex flex-col gap-2">
 
+                                {/* 1. PLAY AGAIN (Primary) */}
+                    <button 
+                        onClick={startGame} 
+                        className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-200 transform hover:scale-[1.02]"
+                    >
+                        PLAY AGAIN
+                    </button>
+
+                                {/* SHARE BUTTON */}
+                    <button 
+                        onClick={handleShare}
+                        className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-200 transform hover:scale-[1.02] flex items-center justify-center gap-2 mb-2"
+                    >
+                        <span>📤</span> SHARE DISCOVERY
+                    </button>
                                 {/* 2. JOURNAL (Secondary) */}
-                                {/* 2. JOURNAL (Secondary) */}
-                                <button 
-                                    onClick={fetchJournal} 
-                                    className={`w-full font-bold py-3 rounded-xl transition border-2 flex items-center justify-center gap-2 ${
-                                        pendingJournalEntries.length > 0 
+                    <button 
+                        onClick={fetchJournal} 
+                        className={`w-full font-bold py-3 rounded-xl transition border-2 flex items-center justify-center gap-2 ${
+                            pendingJournalEntries.length > 0 
                                         ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-wiggle shadow-lg' // Active State
                                         : 'bg-amber-100 border-amber-200 text-amber-900 hover:bg-amber-200' // Default State
                                     }`}
@@ -2290,9 +2336,9 @@ const endGame = async (result) => {
                                     Exit to Main Menu
                                 </button>
                             </div>
-            </div>
-        </div>
-        )}
+                        </div>
+                    </div>
+                    )}
 
         {/* SHOW EITHER: The New Discovery Modal OR The Standard Journal */}
         {showJournal && pendingJournalEntries.length > 0 ? (
