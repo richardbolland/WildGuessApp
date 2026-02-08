@@ -396,6 +396,7 @@ const isLowQualityRecord = (record) => {
             const [pendingJournalEntries, setPendingJournalEntries] = useState([]);
             const interactionLockRef = useRef(false); // Prevents double-clicks/skips
             const [isOfflineMode, setIsOfflineMode] = useState(false);
+            const [showShareMenu, setShowShareMenu] = useState(false);
 
             // --- LOADING & TUTORIAL STATE ---
             const [isLoading, setIsLoading] = useState(false);
@@ -1159,32 +1160,56 @@ const handleBackToCategories = () => {
 };
 
 const handleShare = async () => {
-    // 1. Format the text nicely
-    const shareText = `I just discovered the ${animalData.correctName} in Wild Guess! 🐊\n\nScore: ${roundScore}/5\nLocation: ${animalData.location}\n\nCan you beat me? Play here: https://www.wildguess.co.za`;
+    // 1. Create one big message string including the URL
+    const fullMessage = `I just discovered the ${animalData.correctName} in Wild Guess! 🐊\n\nScore: ${roundScore}/5\nLocation: ${animalData.location}\n\nCan you beat me? Play here:\nhttps://www.wildguess.co.za`;
     
-    // 2. Try to use the native device share (Mobile)
+    // 2. Try native share
     if (navigator.share) {
         try {
             await navigator.share({
-                title: 'Wild Guess - 5 Clues. 1 Animal. How wild is your guess?',
-                text: shareText,
-                url: 'https://www.wildguess.co.za'
+                // TITLE is often ignored by apps but good to have
+                title: 'Wild Guess Expedition', 
+                
+                // TEXT is the most important part now
+                text: fullMessage 
+                
+                // URL field is REMOVED intentionally. 
+                // Putting the URL inside 'text' guarantees it appears in the message body.
             });
             logEvent(analytics, 'share', { method: 'native' });
         } catch (err) {
             console.log('Share dismissed', err);
         }
     } else {
-        // 3. Fallback for Desktop (Copy to Clipboard)
+        // 3. Fallback: Copy to Clipboard (Desktop)
         try {
-            await navigator.clipboard.writeText(shareText);
-            alert("Result copied to clipboard! You can now paste it anywhere.");
+            await navigator.clipboard.writeText(fullMessage);
+            alert("Score copied to clipboard!");
             logEvent(analytics, 'share', { method: 'clipboard' });
         } catch (err) {
             console.error('Failed to copy', err);
         }
     }
 };
+
+// --- SOCIAL SHARE HELPERS ---
+    const shareToWhatsApp = () => {
+        const text = `I just discovered the ${animalData.correctName} in Wild Guess! 🐊\nScore: ${roundScore}/5\nLocation: ${animalData.location}\nPlay here: https://www.wildguess.co.za`;
+        const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+    };
+
+    const shareToFacebook = () => {
+        // Facebook only allows sharing the URL, not custom text (anti-spam policy)
+        const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent('https://www.wildguess.co.za')}`;
+        window.open(url, '_blank');
+    };
+
+    const shareToTwitter = () => {
+        const text = `I found the ${animalData.correctName} in Wild Guess! 🐊 Score: ${roundScore}/5. Play here: https://www.wildguess.co.za`;
+        const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+    };
 
 const handleReportIssue = async () => {
     if (!animalData || !animalData.id) return;
@@ -2298,44 +2323,82 @@ const endGame = async (result) => {
                     </div>
                 </div>
                 {/* SUMMARY FOOTER */}
-                <div className="p-4 bg-white border-t border-slate-100 flex-shrink-0 flex flex-col gap-2">
+<div className="p-4 bg-white border-t border-slate-100 flex-shrink-0 flex flex-col gap-2">
+    
+    {/* 1. MAIN TOGGLE BUTTON */}
+    <button 
+        onClick={() => { sfx.play('click'); setShowShareMenu(!showShareMenu); }}
+        className={`w-full font-bold py-3 rounded-xl transition-all shadow-lg transform flex items-center justify-center gap-2 ${showShareMenu ? 'bg-slate-100 text-slate-600 shadow-inner scale-95' : 'bg-blue-600 hover:bg-blue-700 text-white hover:scale-[1.02] shadow-blue-200'}`}
+    >
+        <span>{showShareMenu ? '❌' : '📤'}</span> 
+        {showShareMenu ? 'CLOSE OPTIONS' : 'SHARE DISCOVERY'}
+    </button>
 
-                                {/* 1. PLAY AGAIN (Primary) */}
-                    <button 
-                        onClick={startGame} 
-                        className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-200 transform hover:scale-[1.02]"
-                    >
-                        PLAY AGAIN
-                    </button>
+    {/* 2. ANIMATED SOCIAL ROW (Hidden by default) */}
+    <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showShareMenu ? 'max-h-24 opacity-100 mb-2' : 'max-h-0 opacity-0'}`}>
+        <div className="flex gap-2 justify-center pt-2">
+            {/* WhatsApp */}
+            <button 
+                onClick={() => { sfx.play('click'); shareToWhatsApp(); }}
+                className="flex-1 bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"
+                title="Share to WhatsApp"
+            >
+                <span className="text-xl">💬</span>
+            </button>
+            
+            {/* Facebook */}
+            <button 
+                onClick={() => { sfx.play('click'); shareToFacebook(); }}
+                className="flex-1 bg-[#1877F2] hover:bg-[#166fe5] text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"
+                title="Share to Facebook"
+            >
+                <span className="text-xl">fb</span>
+            </button>
 
-                                {/* SHARE BUTTON */}
-                    <button 
-                        onClick={handleShare}
-                        className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-blue-200 transform hover:scale-[1.02] flex items-center justify-center gap-2 mb-2"
-                    >
-                        <span>📤</span> SHARE DISCOVERY
-                    </button>
-                                {/* 2. JOURNAL (Secondary) */}
-                    <button 
-                        onClick={fetchJournal} 
-                        className={`w-full font-bold py-3 rounded-xl transition border-2 flex items-center justify-center gap-2 ${
-                            pendingJournalEntries.length > 0 
-                                        ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-wiggle shadow-lg' // Active State
-                                        : 'bg-amber-100 border-amber-200 text-amber-900 hover:bg-amber-200' // Default State
-                                    }`}
-                                >
-                                    <span className="text-lg">📖</span> 
-                                    {pendingJournalEntries.length > 0 ? "NEW ENTRY FOUND!" : "OPEN FIELD JOURNAL"}
-                                </button>
+            {/* X (Twitter) */}
+            <button 
+                onClick={() => { sfx.play('click'); shareToTwitter(); }}
+                className="flex-1 bg-black hover:bg-gray-800 text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"
+                title="Share to X"
+            >
+                <span className="text-xl">𝕏</span>
+            </button>
 
-                                {/* 3. EXIT TO MENU (Tertiary/Ghost) */}
-                                <button 
-                                    onClick={() => { sfx.play('click'); handleExitGame(); }}
-                                    className="w-full text-slate-400 font-bold py-2 rounded-xl hover:bg-slate-50 hover:text-slate-600 transition-colors text-xs uppercase tracking-widest mt-1"
-                                >
-                                    Exit to Main Menu
-                                </button>
-                            </div>
+            {/* Copy Link (Fallback) */}
+            <button 
+                onClick={() => { sfx.play('click'); handleShare(); }} 
+                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-600 py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"
+                title="Copy Link / Native Share"
+            >
+                <span className="text-xl">📋</span>
+            </button>
+        </div>
+    </div>
+
+    {/* 3. PLAY AGAIN */}
+    <button 
+        onClick={startGame} 
+        className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-200 transform hover:scale-[1.02]"
+    >
+        PLAY AGAIN
+    </button>
+
+    {/* ... (Journal and Exit buttons remain below) ... */}
+    <button 
+        onClick={fetchJournal} 
+        className={`w-full font-bold py-3 rounded-xl transition border-2 flex items-center justify-center gap-2 ${pendingJournalEntries.length > 0 ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-wiggle shadow-lg' : 'bg-amber-100 border-amber-200 text-amber-900 hover:bg-amber-200'}`}
+    >
+        <span className="text-lg">📖</span> 
+        {pendingJournalEntries.length > 0 ? "NEW ENTRY FOUND!" : "OPEN FIELD JOURNAL"}
+    </button>
+
+    <button 
+        onClick={() => { sfx.play('click'); handleExitGame(); }}
+        className="w-full text-slate-400 font-bold py-2 rounded-xl hover:bg-slate-50 hover:text-slate-600 transition-colors text-xs uppercase tracking-widest"
+    >
+        Exit to Main Menu
+    </button>
+</div>
                         </div>
                     </div>
                     )}
