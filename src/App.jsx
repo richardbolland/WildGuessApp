@@ -368,7 +368,7 @@ const isLowQualityRecord = (record) => {
             // --- STATE HOOKS ---
         const [view, setView] = useState('menu');
         const [isMuted, setIsMuted] = useState(false);
-        const [timerEnabled, setTimerEnabled] = useState(true); // Default to Timer ON
+        const [timerEnabled, setTimerEnabled] = useState(false); // Default to Timer ON
         const [showSettings, setShowSettings] = useState(false);
         const [animalData, setAnimalData] = useState(null);
         const [preloadedData, setPreloadedData] = useState(null);
@@ -921,6 +921,10 @@ const fetchValidAnimal = async (attempt = 1) => {
                 sciName: target.displayLatin || target.sciName,      
                 family: target.family || "Unknown Family", 
                 image: obs.photos[0].url.replace('square', 'original').replace('small', 'original').replace('medium', 'original').replace('large', 'original'),
+                
+                // --- NEW FIELD FOR SOUND CLUE ---
+                soundUrl: null, // Placeholder for future SFX logic
+
                 lat: parseFloat(lat),
                 lng: parseFloat(lng),
                 location: obs.place_guess || "Unknown Wilderness",
@@ -942,7 +946,6 @@ const fetchValidAnimal = async (attempt = 1) => {
             return fetchValidAnimal(attempt + 1);
         }
     };
-
 
     const preloadNextGame = async () => {
         try {
@@ -1254,55 +1257,37 @@ const handleReportIssue = async () => {
 };
 
 const handleFinalGuess = (animalName) => {
-        // --- TUTORIAL MODE LOGIC (Keep exactly as is) ---
+    // --- TUTORIAL MODE LOGIC ---
     if (isTutorialMode) {
         const isCorrect = animalName === animalData.correctName;
-
         if (tutorialStep === 5) {
-            if (isCorrect) {
-                sfx.playWin(); 
-                endGame('win');
-                setTutorialStep(7);
-            } else {
-                sfx.play('error', 0.3); 
-                setWrongGuesses([animalName]);
-                setCurrentClueIndex(4);
-                setRoundScore(1);
-                setTutorialStep(6);
-            }
+            if (isCorrect) { sfx.playWin(); endGame('win'); setTutorialStep(7); } 
+            else { sfx.play('error', 0.3); setWrongGuesses([animalName]); setCurrentClueIndex(4); setRoundScore(1); setTutorialStep(6); }
         } else if (tutorialStep === 6) {
-            if (isCorrect) {
-                sfx.playWin(); 
-                endGame('win');
-                setTutorialStep(7);
-            } else {
-                sfx.play('error', 0.3); 
-                endGame('loss');
-                setTutorialStep(8);
-            }
+            if (isCorrect) { sfx.playWin(); endGame('win'); setTutorialStep(7); } 
+            else { sfx.play('error', 0.3); endGame('loss'); setTutorialStep(8); }
         }
         return;
     }
 
-        // --- STANDARD GAME LOGIC (With Safety Lock Fix) ---
+    // --- STANDARD GAME LOGIC ---
     if (guessLocked || view !== 'game') return;
-
-        // 1. SAFETY LOCK: Check if we are already transitioning
     if (interactionLockRef.current) return; 
 
     if (animalName === animalData.correctName) {
+        // SCORING FIX: Use the existing state variable
         sfx.playWin(); 
-        endGame('win');
+        endGame('win'); // endGame already uses 'roundScore', so we don't need to pass anything
     } else {
         sfx.play('error', 0.3); 
         setWrongGuesses(prev => [...prev, animalName]);
 
+        // If on the final clue (index 4) and wrong -> Loss
         if (currentClueIndex === 4) {
             endGame('loss');
         } else {
-                // 2. ENGAGE LOCK: Prevent double-clicks from skipping the next clue
+            // Prevent double-clicks
             interactionLockRef.current = true; 
-
             setTimeLeft(15);
             advanceClue();
         }
@@ -1692,6 +1677,104 @@ const endGame = async (result) => {
         </div>
         );
 
+        // --- HELPER: GENERATE MULTIPLE CHOICE OPTIONS ---
+    const generateOptions = (correctAnimal) => {
+        if (!correctAnimal) return [];
+        // Get all other animals
+        const others = ALL_ANIMALS_FLAT.filter(a => a.name !== correctAnimal.name);
+        // Shuffle and take 4
+        const shuffled = others.sort(() => 0.5 - Math.random()).slice(0, 4);
+        // Add correct answer and shuffle again
+        const options = [...shuffled, correctAnimal];
+        return options.sort(() => 0.5 - Math.random()).map(a => a.name);
+    };
+
+   // --- RENDER LEFT PANEL (Clues & Map) ---
+    const renderLeftPanel = () => {
+        if (!animalData) return null;
+
+        return (
+            <div className={`flex-1 relative flex flex-col items-center p-4 overflow-hidden bg-slate-900 text-white h-full transition-all duration-1000 ease-in-out ${currentClueIndex >= 1 ? 'justify-start pt-28' : 'justify-center'}`}>
+                
+                {/* --- LAYER 0: BACKGROUND MAP --- */}
+                {/* Clue 1: Blurred Map Background. Clue 2+: Sharp Map */}
+                <div className={`absolute inset-0 z-0 transition-all duration-1000 transform ${currentClueIndex === 0 ? 'blur-lg opacity-50 scale-110' : 'blur-0 opacity-100 scale-100'}`}>
+                    <MapClue lat={animalData.lat} lng={animalData.lng} zoom={currentClueIndex <= 1 ? 4 : 11} />
+                    
+                    {/* FLAT TINT ONLY - No Gradient */}
+                    <div className={`absolute inset-0 bg-black transition-opacity duration-1000 ${currentClueIndex === 0 ? 'opacity-30' : 'opacity-10'}`}></div>
+                </div>
+
+                {/* --- LAYER 1: TOP INFO BAR --- */}
+                <div className="absolute top-0 left-0 w-full p-4 z-20 flex justify-between items-start pointer-events-none">
+                    <div className="flex flex-col items-start gap-2">
+                        <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 text-xs font-bold text-emerald-400 shadow-sm">
+                            Clue {currentClueIndex + 1}/5
+                        </div>
+                        {/* Location Name (Appears Round 2) */}
+                        <div className={`transition-all duration-700 origin-left ${currentClueIndex >= 1 ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
+                            <h2 className="text-white text-lg md:text-2xl font-black drop-shadow-md leading-tight text-left max-w-[200px] md:max-w-md bg-black/40 backdrop-blur-sm p-2 rounded-lg border border-white/10">
+                                {animalData.location}
+                            </h2>
+                        </div>
+                    </div>
+                    <div className="bg-emerald-600/90 backdrop-blur-md px-3 py-2 rounded-xl shadow-lg border-2 border-emerald-400/50 flex flex-col items-center min-w-[60px]">
+                        <span className="text-white font-black text-xl leading-none">{roundScore}</span>
+                        <span className="text-[8px] uppercase font-bold text-emerald-100 leading-none mt-0.5">PTS</span>
+                    </div>
+                </div>
+
+                {/* --- LAYER 2: CENTER CONTENT --- */}
+                <div className="z-10 w-full max-w-md flex flex-col items-center gap-3 transition-all duration-700">
+                    {/* Clue 1: Taxonomy Card */}
+                    <div className={`transition-all duration-1000 bg-black/60 backdrop-blur-md p-5 rounded-2xl border border-white/20 shadow-2xl text-center w-full ${currentClueIndex >= 1 ? 'origin-top scale-90 opacity-90' : 'scale-100'}`}>
+                        <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Scientific Classification</p>
+                        <p className="text-2xl md:text-3xl font-serif italic text-white font-bold">
+                            {animalData.sciName}
+                        </p>
+                        <p className="text-xs text-slate-300 mt-1 font-mono uppercase tracking-wide">{animalData.family}</p>
+                        <div className="mt-3 pt-3 border-t border-white/10">
+                            <p className="text-white font-medium italic text-sm md:text-base">"{animalData.stats.trait}"</p>
+                        </div>
+                    </div>
+
+                    {/* Clue 4: Photo Card (Sharper Blur) */}
+                    {currentClueIndex >= 3 && (
+                        <div className="w-full relative animate-pop mt-1">
+                            <div className="aspect-video bg-slate-800 rounded-xl overflow-hidden border-2 border-white/30 shadow-2xl relative">
+                                <img src={animalData.image} alt="Clue" className="w-full h-full object-cover blur-[2px] scale-105" />
+                                <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                                    <span className="text-5xl font-black text-white/90 drop-shadow-lg">?</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* --- LAYER 3: BOTTOM CONTROLS --- */}
+                <div className="absolute bottom-0 left-0 w-full p-4 flex flex-col items-center justify-end z-30 pt-16 gap-3">
+                    {currentClueIndex >= 2 && (
+                        <button 
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white w-full max-w-xs py-3 rounded-xl shadow-lg flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 animate-pop mb-1"
+                            onClick={() => animalData.soundUrl ? new Audio(animalData.soundUrl).play() : alert("🔊 No audio yet!")}
+                        >
+                            <span className="text-xl">🔊</span>
+                            <span className="font-bold uppercase text-xs tracking-wider">Play Sound</span>
+                        </button>
+                    )}
+                    {currentClueIndex < 4 ? (
+                        <button onClick={() => { sfx.play('click'); skipClue(); }} className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-black py-3 px-10 rounded-full shadow-lg shadow-amber-500/20 transition-transform active:scale-95 uppercase tracking-wider text-xs flex items-center gap-2 border-2 border-amber-300/50">
+                            <span>Next Clue</span><span className="bg-amber-900/20 px-2 py-0.5 rounded text-[10px] font-bold">-1 Pt</span>
+                        </button>
+                    ) : (
+                        <div className="bg-red-500 text-white px-6 py-2 rounded-full font-bold text-xs uppercase shadow-lg animate-pulse border-2 border-red-400">Make Your Guess →</div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+
         if (view === 'menu') {
             return (
                 <div className="h-screen w-full bg-gradient-to-b from-green-900 to-green-700 overflow-x-hidden overflow-y-auto md:overflow-hidden relative flex flex-col md:flex-row items-center justify-start md:justify-center p-4 gap-6 py-12 md:py-0">   
@@ -1996,442 +2079,256 @@ const endGame = async (result) => {
                 );
     }
 
+    // --- FINAL RENDER ---
     return (
         <div className="h-screen w-full flex flex-col md:flex-row bg-slate-100 overflow-hidden relative">
-            <div id="landscape-warning" className="fixed inset-0 z-[100] bg-slate-900 text-white flex-col items-center justify-center p-6 text-center">
-                <div className="text-6xl mb-6">🔄</div><h2 className="text-2xl font-bold mb-2">Please Rotate Device</h2><p className="text-slate-300">This game is designed for portrait mode.</p>
+            
+            <div id="landscape-warning" className="fixed inset-0 z-[100] bg-slate-900 text-white flex-col items-center justify-center p-6 text-center hidden md:hidden landscape:flex">
+                <div className="text-6xl mb-6">🔄</div>
+                <h2 className="text-2xl font-bold mb-2">Please Rotate Device</h2>
             </div>
 
-        {/* --- LEFT PANEL: MAP & CLUES --- */}
-            <div className="flex-1 flex flex-col bg-white m-2 rounded-xl shadow-sm overflow-hidden relative order-1">
-                {/* PROGRESS BAR (Visual Fix) */}
-                <div className="h-2 bg-slate-200 w-full flex-shrink-0">
-                    <div 
-                        className={`h-full transition-all duration-1000 linear ${timerEnabled ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} 
-                        style={{ width: `${(timeLeft / 15) * 100}%` }}
-                    ></div>
-                    </div>
-                    <div className="flex-1 relative">
-
-                    {/* --- SINGLE SETTINGS BUTTON (Top Right) --- */}
-                        <button 
-                            onClick={() => { sfx.play('click'); setShowSettings(true); }}
-                            className="absolute top-2 right-2 z-[60] w-10 h-10 bg-white/90 border-2 border-slate-300 rounded-full shadow-md text-slate-600 font-bold flex items-center justify-center hover:bg-slate-50 active:scale-95 transition-all"
-                        >
-                            <span className="text-xl">⚙️</span>
-                        </button>
-
-    {/* --- RENDER SETTINGS MODAL --- */}
-                        {showSettings && <SettingsModal />}
-
-
- {/* OFFLINE MODE NOTIFICATION */}
-                        {isOfflineMode && (
-                            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[80] bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-bounce flex items-center gap-2 whitespace-nowrap">
-                                <span>⚠️</span> Server Offline: Using Backup Data
-                            </div>
-                            )}   
-
-
-                {/* TOAST NOTIFICATION */}
-                        {showToast && (
-                            <div className="absolute top-12 right-2 z-[70] bg-slate-800 text-white text-xs px-3 py-2 rounded-lg shadow-lg animate-pop max-w-[150px] text-right">
-                                Tutorial hidden.<br />Tap "OFF" to restart.
-                            </div>
-                            )}
-
-                        <div className="absolute inset-0" key={gameId}>
-                    {/* Map Layer */}
-                            <div className={`absolute inset-0 transition-opacity duration-500 ${currentClueIndex >= 0 ? 'opacity-100' : 'opacity-0'}`}>
-                                {animalData && (
-                                    <MapClue
-                                        lat={animalData.lat}
-                                        lng={animalData.lng}
-                                        zoom={currentClueIndex === 0 ? 2 : (currentClueIndex === 1 ? 5 : 11)}
-                                        />
-                                        )}
-                            </div>
-                    {/* Photo Background Layer (Desktop only) */}
-                            <div className={`hidden md:block absolute inset-0 z-10 transition-opacity duration-1000 bg-slate-200 overflow-hidden ${currentClueIndex >= 4 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                                {animalData?.image && (
-                                    <div className="w-full h-full relative">
-                {/* Added blur-xl and scale-110 to blur and hide edges */}
-                                        <img 
-                                            src={animalData.image} 
-                                            className="w-full h-full object-cover blur-xl scale-110 transform" 
-                                            alt="Revealed Animal" 
-                                        />
-                                        <div className="absolute inset-0 bg-black/10"></div>
-                                    </div>
-                                    )}
-                            </div>
-                        </div>
-
-                        <div className="hidden md:block absolute top-0 left-0 right-0 z-30 pt-6 text-center pointer-events-none">
-                            <h2 className="text-3xl md:text-4xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-tight uppercase leading-none">Take a <span className="text-emerald-400">Wild Guess</span></h2>
-                            <p className="text-white text-sm font-bold mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] uppercase tracking-widest">Can you identify this animal?</p>
-                        </div>
-
-                {/* CLUES CONTAINER */}
-                        <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center pt-12 pb-2 px-2 md:pt-24 md:pb-4 md:px-4">
-
-                    {/* Clue 5: BLURRED IMAGE + QUESTION MARK */}
-                            {currentClueIndex === 4 && animalData?.image && (
-                                <div className="w-full flex justify-center mb-2 md:mb-8 order-first pointer-events-auto">
-                                    <div className="group relative bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-48 h-32 md:w-64 md:h-48 flex-shrink-0 animate-pop transform hover:scale-105 transition-transform cursor-pointer">
-
-                    {/* The Blurred Photo */}
-                                        <img 
-                                            src={animalData.image} 
-                                            className="w-full h-full object-cover blur-[2px] scale-110 transition-all duration-700 group-hover:blur-none group-hover:scale-105" 
-                                            alt="Mystery Clue" 
-                                        />
-
-                    {/* The Question Mark Overlay */}
-                                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                                            <span className="text-6xl md:text-8xl font-black text-white/90 drop-shadow-md group-hover:opacity-50 transition-opacity">
-                                                ?
-                                            </span>
-                                        </div>
-
-                                    </div>
-                                </div>
-                                )}
-
-                    {/* Clue 2: Location (TOP) */}
-                            <div className={`order-1 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 1 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
-                                <div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-4 md:py-2 rounded-lg shadow-xl border border-white/50">
-                                    <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block text-center tracking-wider">Location</span>
-                                    <span className="text-slate-800 font-bold text-xs md:text-lg leading-tight block">{animalData?.location}</span>
-                                </div>
-                            </div>
-
-                    {/* Clue 4: Hint (PUSHED TO BOTTOM) */}
-                            <div className={`order-2 w-full flex justify-center md:static mt-auto mb-2 md:mb-4 transition-all duration-500 transform ${currentClueIndex >= 3 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}`}>
-                                <div className="bg-emerald-50/95 backdrop-blur-md px-3 py-1.5 md:px-5 md:py-3 rounded-lg shadow-xl border border-emerald-100 max-w-sm text-center mx-4">
-                                    <span className="text-[8px] md:text-[10px] font-bold text-emerald-600 uppercase block mb-0.5 tracking-wider">Hint</span>
-                                    <div className="text-emerald-900 font-medium italic text-xs md:text-lg leading-tight">"{animalData?.stats?.trait}"</div>
-                                </div>
-                            </div>
-
-                    {/* Clue 3: Taxonomy (VERY BOTTOM) */}
-                            <div className={`order-3 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 2 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
-                                <div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-6 md:py-3 rounded-lg shadow-xl border border-white/50 text-center min-w-[160px] md:min-w-[220px]">
-                                    <div className="mb-0.5 md:mb-2">
-                                        <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Family</span>
-                                        <span className="text-indigo-600 font-mono font-bold text-xs md:text-lg leading-none">{animalData?.family}</span>
-                                    </div>
-                                    <div className="border-t border-slate-200/50 pt-0.5 md:pt-2">
-                                        <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Scientific Name</span>
-                                        <span className="text-emerald-800 italic font-serif text-sm md:text-xl leading-none">
-                                            {animalData?.displayLatin || animalData?.sciName}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                        </div>
-                    </div>
-
-            {/* FOOTER */}
-                    <div className="h-14 bg-white border-t border-slate-100 flex items-center justify-between px-4 z-10 flex-shrink-0">
-    {/* PROMINENT POINTS DISPLAY */}
-                        <div className="flex items-center gap-3 bg-emerald-50 border-2 border-emerald-200 px-3 py-1 rounded-lg shadow-sm">
-                            <div className="flex flex-col items-end leading-none">
-                                <span className="text-[9px] text-emerald-500 font-black uppercase tracking-widest">Potential</span>
-                                <span className="text-[9px] text-emerald-500 font-black uppercase tracking-widest">Reward</span>
-                            </div>
-                            <div className="text-4xl font-black text-emerald-600 drop-shadow-sm">
-                                {roundScore}
-                            </div>
-                        </div>
-                        <div className="flex gap-2">
-                    {/* Dynamic Give Up Button */}
-                            <button
-                                onMouseEnter={() => sfx.play('hover')}
-                                onClick={() => endGame('surrender')}
-                                disabled={isTutorialMode}
-                                className={`px-4 py-2 text-xs rounded-full transition-all duration-300 ${currentClueIndex === 4
-                                    ? 'bg-red-500 text-white font-black tracking-widest shadow-lg hover:bg-red-600 hover:scale-105 animate-pulse'
-                                    : 'text-slate-400 hover:text-red-500 font-medium'
-                                } ${isTutorialMode ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
-                            >
-                                GIVE UP
-                            </button>
-
-                    {/* Next Clue Button - Hidden on Final Clue (Index 4) */}
-                            {currentClueIndex < 4 && (
-                                <button
-                                    onMouseEnter={() => sfx.play('hover', 0.2)}
-                                    onClick={() => { sfx.play('click', 0.2); skipClue(); }}
-                                    disabled={isTutorialMode}
-                                    className={`bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-xs font-bold hover:bg-blue-100 transition ${isTutorialMode ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}
-                                >
-                                    {timerEnabled ? 'NEXT CLUE' : 'REVEAL NEXT'}
-                                </button>
-                                )}
-                        </div>
-                    </div>
+            {/* --- LEFT PANEL --- */}
+            <div className="flex-1 flex flex-col bg-slate-900 m-0 md:m-2 rounded-none md:rounded-xl shadow-sm overflow-hidden relative order-1">
+                
+                {/* Progress Bar */}
+                <div className="h-1 bg-slate-800 w-full flex-shrink-0">
+                    <div className={`h-full transition-all duration-1000 linear ${timerEnabled ? 'bg-emerald-500' : 'bg-slate-600'}`} style={{ width: `${(timeLeft / 15) * 100}%` }}></div>
                 </div>
 
-        {/* --- RIGHT PANEL: SIDEBAR (ANSWERS) --- */}
-                <div className="h-[45%] md:h-full md:w-96 bg-slate-50 overflow-hidden border-t md:border-t-0 md:border-l border-slate-200 order-2 flex flex-col shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative">
+                {/* --- UTILITY BUTTONS (Journal & Settings) --- */}
+                <div className="absolute top-3 right-3 z-50 flex items-center gap-4">
+                    
+                    {/* JOURNAL BUTTON (Hidden if not logged in, or shown for everyone depending on preference) */}
+                    <button 
+                        onClick={() => { sfx.play('click'); fetchJournal(); }} 
+                        className={`transition-all hover:scale-110 ${
+                            pendingJournalEntries.length > 0 
+                            ? 'text-emerald-400 animate-bounce opacity-100' 
+                            : 'text-white/50 hover:text-white'
+                        }`}
+                        title="Open Field Journal"
+                    >
+                        <span className="text-2xl filter drop-shadow-md">📖</span>
+                    </button>
 
-            {/* SEARCH BAR (Sticky Top) */}
-                    <div className="p-2 border-b border-slate-200 bg-slate-100 flex-shrink-0 z-10">
-                        <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
-                            <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => {
-                                    setSearchTerm(e.target.value);
-                                    if (isTutorialMode && tutorialStep === 4) {
-                                        nextTutorialStep();
-                                    }
-                                }}
-                                placeholder="Search animals..."
-                                onClick={() => sfx.play('click', 0.2)}
-                                disabled={guessLocked || (isTutorialMode && tutorialStep < 4)}
-                                    className="w-full pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm disabled:opacity-50 disabled:bg-slate-50"
-                                />
-                                {searchTerm && (
-                                    <button
-                                        onClick={() => setSearchTerm('')}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold px-1"
-                                    >
-                                        ✕
-                                    </button>
-                                    )}
+                    {/* SETTINGS BUTTON */}
+                    <button 
+                        onClick={() => { sfx.play('click'); setShowSettings(true); }} 
+                        className="text-white/50 hover:text-white transition-colors hover:rotate-90 duration-500"
+                        title="Settings"
+                    >
+                        <span className="text-2xl filter drop-shadow-md">⚙️</span>
+                    </button>
+                </div>
+
+                {/* RENDER THE CLUES HERE */}
+                {renderLeftPanel()}
+            </div>
+
+            {/* --- RIGHT PANEL --- */}
+            <div className="h-[45%] md:h-full md:w-96 bg-slate-50 overflow-hidden border-t md:border-t-0 md:border-l border-slate-200 order-2 flex flex-col shadow-xl z-40 relative">
+                {currentClueIndex === 4 ? (
+                    <div className="flex-1 flex flex-col p-6 items-center justify-center bg-slate-100">
+                        <div className="text-center mb-6">
+                            <h3 className="text-xl font-black text-slate-800 uppercase tracking-wide">Final Chance</h3>
+                            <p className="text-slate-500 text-sm font-bold mt-1">Select the correct animal (+1 Pt)</p>
+                        </div>
+                        <div className="w-full space-y-3">
+                            {generateOptions(animalData).map((opt, i) => (
+                                <button key={i} onClick={() => handleFinalGuess(opt)} className="w-full bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-bold py-4 px-6 rounded-xl shadow-sm border-2 border-slate-200 hover:border-emerald-400 transition-all text-left flex items-center justify-between group animate-fade-in-up" style={{ animationDelay: `${i * 100}ms` }}>
+                                    <span className="text-sm uppercase tracking-wider">{opt}</span><span className="text-slate-300 group-hover:text-emerald-500 text-lg">➜</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <div className="p-3 border-b border-slate-200 bg-white flex-shrink-0 z-10 shadow-sm">
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search animals..." disabled={guessLocked} className="w-full pl-9 pr-3 py-2.5 bg-slate-100 border-none rounded-xl text-sm font-bold text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-emerald-500 transition-all" />
+                                {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">✕</button>}
                             </div>
                         </div>
-
-            {/* SCROLLABLE LIST AREA */}
-                        <div className="flex-1 overflow-y-auto custom-scroll p-2 content-start">
-
-                {/* SCENARIO 1: SEARCH RESULTS */}
+                        <div className="flex-1 overflow-y-auto custom-scroll p-2 content-start bg-slate-50">
                             {searchTerm ? (
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-1 gap-2">
                                     {ALL_ANIMALS_FLAT.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).map((animal, idx) => {
                                         const isWrong = wrongGuesses.includes(animal.name);
                                         return (
-                                            <button
-                                                key={idx}
-                                                disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)}
-                                                onClick={() => { handleFinalGuess(animal.name); setSearchTerm(''); }}
-                                                className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all py-2 px-2 text-xs text-left flex items-center ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}
-                                            >
-                                                <span className="mr-2 text-base">{animal.groupEmoji}</span>
-                                                <span className="truncate">{animal.name}</span>
+                                            <button key={idx} disabled={guessLocked || isWrong} onClick={() => { handleFinalGuess(animal.name); setSearchTerm(''); }} className={`rounded-xl font-bold p-3 text-left flex items-center transition-all ${isWrong ? 'bg-red-50 text-red-300' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 shadow-sm'}`}>
+                                                <span className="mr-3 text-lg">{animal.groupEmoji}</span><span className="text-sm">{animal.name}</span>
                                             </button>
-                                            );
+                                        );
                                     })}
-                                    {ALL_ANIMALS_FLAT.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
-                                        <div className="col-span-2 text-center text-slate-400 text-xs py-4 italic">No animals found</div>
-                                        )}
                                 </div>
-                                ) : (
-                    /* SCENARIO 2: NORMAL NAVIGATION */
+                            ) : (
                                 <>
-                                {!selectedGroup && (
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 h-full content-start">
-                                        <button
-                                            onClick={() => handleCategoryClick("ALL")}
-                                            disabled={guessLocked || (isTutorialMode && tutorialStep < 4)}
-                                                className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-slate-200 text-slate-700 hover:bg-slate-300 hover:shadow-md cursor-pointer border border-slate-300 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
-                                                >
-                                                    <span className="text-xl mr-2 md:mr-0 md:mb-1">🌎</span><span className="text-[10px] md:text-[10px] font-bold uppercase tracking-tight text-left md:text-center leading-tight">All Animals</span>
+                                    {!selectedGroup && (
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button onClick={() => handleCategoryClick("ALL")} disabled={guessLocked} className="bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-xl p-3 flex flex-col items-center justify-center gap-1 shadow-sm transition-all">
+                                                <span className="text-2xl">🌎</span><span className="text-[10px] font-bold uppercase tracking-wider">All Animals</span>
+                                            </button>
+                                            {ANIMAL_GROUPS.map((group, idx) => (
+                                                <button key={idx} disabled={guessLocked} onClick={() => handleCategoryClick(group)} className="bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl p-3 flex flex-col items-center justify-center gap-1 shadow-sm border border-slate-100 transition-all">
+                                                    <span className="text-2xl">{group.emoji}</span><span className="text-[10px] font-bold uppercase tracking-wider">{group.name}</span>
                                                 </button>
-                                                {ANIMAL_GROUPS.map((group, idx) => (
-                                                    <button
-                                                        key={idx}
-                                                        disabled={guessLocked || (isTutorialMode && tutorialStep < 4)}
-                                                            onClick={() => handleCategoryClick(group)}
-                                                            className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-white hover:bg-emerald-50 hover:shadow-md cursor-pointer border border-slate-100 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}
-                                                            >
-                                                                <span className="text-xl mr-2 md:mr-0 md:mb-1">{group.emoji}</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight text-left md:text-center leading-tight">{group.name}</span>
-                                                            </button>
-                                                            ))}
-                                            </div>
-                                            )}
-                                {selectedGroup && (
-                                    <div className="flex flex-col h-full">
-                                        <button
-                                            onMouseEnter={() => sfx.play('hover', 0.1)}
-                                            onClick={() => { sfx.play('click', 0.2); handleBackToCategories(); }}
-                                            disabled={isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6}
-                                            className={`mb-2 flex items-center justify-center bg-slate-100 border border-slate-200 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 text-[10px] uppercase font-bold px-2 py-1.5 flex-shrink-0 transition-colors ${(isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6) ? 'opacity-50' : ''}`}
-                                        >
-                                            ← Back to Categories
-                                        </button>
-                                        <div className="text-center mb-2 flex-shrink-0"><span className="text-xl inline-block mr-2">{selectedGroup === "ALL" ? "🌎" : selectedGroup.emoji}</span><span className="text-sm font-bold text-slate-700">{selectedGroup === "ALL" ? "All Animals" : selectedGroup.name}</span></div>
-                                        <div className={`grid gap-2 flex-1 content-start ${selectedGroup === "ALL" ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                                            {(selectedGroup === "ALL" ? ALL_ANIMALS_FLAT : selectedGroup.animals).map((animal, idx) => {
-                                                const isWrong = wrongGuesses.includes(animal.name);
-                                                return (
-                                                    <button
-                                                        key={idx}
-                                                        disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)}
-                                                        onClick={() => handleFinalGuess(animal.name)}
-                                                        className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all leading-tight ${selectedGroup === "ALL" ? 'py-1 px-1 text-[9px] h-10 flex flex-col justify-center items-center' : 'py-2 px-2 text-xs'} ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}
-                                                    >
-                                                        {selectedGroup === "ALL" && <span className="opacity-60 text-xs mb-0.5">{animal.groupEmoji}</span>}
-                                                        <span className="truncate w-full text-center">{animal.name}</span>
-                                                    </button>
-                                                    )
-                                            })}
+                                            ))}
                                         </div>
-                                    </div>
+                                    )}
+                                    {selectedGroup && (
+                                        <div className="flex flex-col h-full">
+                                            <button onClick={() => handleBackToCategories()} className="mb-3 flex items-center justify-center bg-slate-200 text-slate-600 rounded-xl py-2 text-xs font-bold uppercase tracking-wide hover:bg-slate-300 transition-colors">← Back to Categories</button>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {(selectedGroup === "ALL" ? ALL_ANIMALS_FLAT : selectedGroup.animals).map((animal, idx) => {
+                                                    const isWrong = wrongGuesses.includes(animal.name);
+                                                    return (
+                                                        <button key={idx} disabled={guessLocked || isWrong} onClick={() => handleFinalGuess(animal.name)} className={`rounded-xl font-bold p-2 text-xs text-center flex flex-col items-center justify-center h-20 transition-all ${isWrong ? 'bg-red-50 text-red-300 border border-red-100' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 border border-slate-100 shadow-sm'}`}>
+                                                            {selectedGroup === "ALL" && <span className="text-lg mb-1">{animal.groupEmoji}</span>}<span className="leading-tight">{animal.name}</span>
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
                                     )}
                                 </>
-                                )}
-    </div>
-</div>
-
-        {/* --- GLOBAL OVERLAYS --- */}
-{view === 'summary' && (
-    <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-pop flex flex-col max-h-[90vh]">
-            <div className="h-64 bg-slate-200 relative flex-shrink-0">
-                {animalData?.image ? (<img src={animalData.image} className="w-full h-full object-cover" alt="Animal" />) : (<div className="w-full h-full flex items-center justify-center text-slate-400">No Image</div>)}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-12"><h2 className="text-white text-3xl font-bold leading-none">{animalData?.correctName}</h2><p className="text-white/80 text-sm italic font-serif mt-1">{animalData?.sciName}</p></div>
-                </div>
-                <div className="p-6 text-center flex-1 overflow-y-auto custom-scroll">
-                    {gameResult === 'win' ? (<div className="mb-6"><div className="text-5xl mb-2 animate-bounce">🎉</div><h3 className="text-2xl font-bold text-emerald-600 mb-1">Correct!</h3><p className="text-slate-600 font-medium">You earned <span className="text-emerald-600 font-bold">{roundScore} points</span>.</p></div>) : (<div className="mb-6"><div className="text-5xl mb-2">☠️</div><h3 className="text-2xl font-bold text-red-600 mb-1">Missed it!</h3><p className="text-slate-600">Better luck next time.</p></div>)}
-                    <div className="bg-slate-50 rounded-xl p-4 text-left space-y-3 text-sm border border-slate-100 shadow-inner">
-                        <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Observed By</span>{animalData?.link ? (<a href={animalData.link} target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-medium hover:underline truncate max-w-[150px]">{animalData.recordedBy} ↗</a>) : (<span className="text-slate-700 font-medium">{animalData?.recordedBy}</span>)}</div>
-                        <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Date</span><span className="text-slate-700 font-medium">{animalData?.stats?.date}</span></div>
-                        <div className="flex justify-between border-b border-slate-200 pb-2"><span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Location</span><span className="text-slate-700 text-right max-w-[60%] font-medium">{animalData?.location}</span></div>
-
-                        {/* DATA SOURCE & ACTIONS */}
-                        <div className="pt-4 mt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-
-                            {/* Source Link */}
-                            <div>
-                                Source: <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-600 underline">iNaturalist</a>
-                            </div>
-
-                            {/* Minimal Report Button */}
-                            <button
-                                onClick={handleReportIssue}
-                                className="flex items-center gap-1 text-slate-300 hover:text-red-400 transition-colors font-bold uppercase tracking-wider"
-                                title="Report bad data, wrong location, or dead animal"
-                            >
-                                <span>🚩</span> Report Issue
-                            </button>
+                            )}
                         </div>
-                    </div>
-                </div>
-                {/* SUMMARY FOOTER */}
-<div className="p-4 bg-white border-t border-slate-100 flex-shrink-0 flex flex-col gap-2">
-    
-    {/* 1. MAIN TOGGLE BUTTON */}
-    <button 
-        onClick={() => { sfx.play('click'); setShowShareMenu(!showShareMenu); }}
-        className={`w-full font-bold py-3 rounded-xl transition-all shadow-lg transform flex items-center justify-center gap-2 ${showShareMenu ? 'bg-slate-100 text-slate-600 shadow-inner scale-95' : 'bg-blue-600 hover:bg-blue-700 text-white hover:scale-[1.02] shadow-blue-200'}`}
-    >
-        <span>{showShareMenu ? '❌' : '📤'}</span> 
-        {showShareMenu ? 'CLOSE OPTIONS' : 'SHARE DISCOVERY'}
-    </button>
-
-    {/* 2. ANIMATED SOCIAL ROW (Hidden by default) */}
-    <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showShareMenu ? 'max-h-24 opacity-100 mb-2' : 'max-h-0 opacity-0'}`}>
-        <div className="flex gap-2 justify-center pt-2">
-            {/* WhatsApp */}
-            <button 
-                onClick={() => { sfx.play('click'); shareToWhatsApp(); }}
-                className="flex-1 bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"
-                title="Share to WhatsApp"
-            >
-                <span className="text-xl">💬</span>
-            </button>
-            
-            {/* Facebook */}
-            <button 
-                onClick={() => { sfx.play('click'); shareToFacebook(); }}
-                className="flex-1 bg-[#1877F2] hover:bg-[#166fe5] text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"
-                title="Share to Facebook"
-            >
-                <span className="text-xl">fb</span>
-            </button>
-
-            {/* X (Twitter) */}
-            <button 
-                onClick={() => { sfx.play('click'); shareToTwitter(); }}
-                className="flex-1 bg-black hover:bg-gray-800 text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"
-                title="Share to X"
-            >
-                <span className="text-xl">𝕏</span>
-            </button>
-
-            {/* Copy Link (Fallback) */}
-            <button 
-                onClick={() => { sfx.play('click'); handleShare(); }} 
-                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-600 py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"
-                title="Copy Link / Native Share"
-            >
-                <span className="text-xl">📋</span>
-            </button>
-        </div>
-    </div>
-
-    {/* 3. PLAY AGAIN */}
-    <button 
-        onClick={startGame} 
-        className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-200 transform hover:scale-[1.02]"
-    >
-        PLAY AGAIN
-    </button>
-
-    {/* ... (Journal and Exit buttons remain below) ... */}
-    <button 
-        onClick={fetchJournal} 
-        className={`w-full font-bold py-3 rounded-xl transition border-2 flex items-center justify-center gap-2 ${pendingJournalEntries.length > 0 ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-wiggle shadow-lg' : 'bg-amber-100 border-amber-200 text-amber-900 hover:bg-amber-200'}`}
-    >
-        <span className="text-lg">📖</span> 
-        {pendingJournalEntries.length > 0 ? "NEW ENTRY FOUND!" : "OPEN FIELD JOURNAL"}
-    </button>
-
-    <button 
-        onClick={() => { sfx.play('click'); handleExitGame(); }}
-        className="w-full text-slate-400 font-bold py-2 rounded-xl hover:bg-slate-50 hover:text-slate-600 transition-colors text-xs uppercase tracking-widest"
-    >
-        Exit to Main Menu
-    </button>
-</div>
-                        </div>
-                    </div>
-                    )}
-
-        {/* SHOW EITHER: The New Discovery Modal OR The Standard Journal */}
-        {showJournal && pendingJournalEntries.length > 0 ? (
-            <NewDiscoveryModal 
-                pendingAnimals={pendingJournalEntries}
-                onConfirmOne={handleConfirmJournalEntry}
-                onConfirmAll={handleConfirmAllJournal}
-                allAnimalsFlat={ALL_ANIMALS_FLAT}
-                />
-                ) : (
-                journalModal
+                    </>
                 )}
+            </div>
 
-        {/* TUTORIAL OVERLAY */}
-                {isTutorialMode && (
-                    <div className={`absolute z-[100] max-w-[280px] ${TUTORIAL_DATA[tutorialStep].positionClasses}`}>
-                        <div className="bg-white rounded-xl shadow-2xl p-4 border-2 border-emerald-500 relative animate-pop">
-                            <div className={`absolute w-0 h-0 border-[10px] ${TUTORIAL_DATA[tutorialStep].arrowClasses}`}></div>
-                            <p className="text-slate-700 font-bold text-sm mb-3 leading-snug">
-                                {TUTORIAL_DATA[tutorialStep].text.split("**").map((part, i) => i % 2 === 1 ? <span key={i} className="text-emerald-600 font-black">{part}</span> : part)}
-                                </p>
-                                {!TUTORIAL_DATA[tutorialStep].hideButton && (
-                                    <button onMouseEnter={() => sfx.play('hover')} onClick={nextTutorialStep} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg text-xs uppercase tracking-wider shadow-sm">
-                                        {TUTORIAL_DATA[tutorialStep].buttonText}
-                                    </button>
-                                    )}
+            {/* --- SUMMARY / GAME OVER SCREEN --- */}
+            {view === 'summary' && (
+                <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-pop flex flex-col max-h-[90vh]">
+                        
+                        {/* 1. Header Image */}
+                        <div className="h-64 bg-slate-200 relative flex-shrink-0">
+                            {animalData?.image ? (
+                                <img src={animalData.image} className="w-full h-full object-cover" alt="Animal" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-400">No Image</div>
+                            )}
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-12">
+                                <h2 className="text-white text-3xl font-bold leading-none">{animalData?.correctName}</h2>
+                                <p className="text-white/80 text-sm italic font-serif mt-1">{animalData?.sciName}</p>
                             </div>
                         </div>
-                        )}
-            </div>
-            );
-    };
+
+                        {/* 2. Scrollable Content Area */}
+                        <div className="p-5 text-center flex-1 overflow-y-auto custom-scroll">
+                            
+                            {/* Win/Loss Message */}
+                            {gameResult === 'win' ? (
+                                <div className="mb-4">
+                                    <h3 className="text-2xl font-black text-emerald-600 uppercase tracking-wide">Correct!</h3>
+                                    <p className="text-slate-600 font-bold text-sm">You earned <span className="text-emerald-600 text-lg">{roundScore} points</span>.</p>
+                                </div>
+                            ) : (
+                                <div className="mb-4">
+                                    <h3 className="text-2xl font-black text-red-500 uppercase tracking-wide">Missed it!</h3>
+                                    <p className="text-slate-600 text-sm">The correct answer was <span className="font-bold text-slate-800">{animalData?.correctName}</span>.</p>
+                                </div>
+                            )}
+
+                            {/* DETAILED STATS CARD */}
+                            <div className="bg-slate-50 rounded-xl p-3 text-left space-y-2 text-xs border border-slate-100 shadow-inner mb-4">
+                                <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                                    <span className="text-slate-400 font-bold uppercase tracking-wider">Observed By</span>
+                                    {animalData?.link ? (
+                                        <a href={animalData.link} target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-bold hover:underline truncate max-w-[150px]">
+                                            {animalData.recordedBy} ↗
+                                        </a>
+                                    ) : (
+                                        <span className="text-slate-700 font-bold">{animalData?.recordedBy}</span>
+                                    )}
+                                </div>
+                                <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                                    <span className="text-slate-400 font-bold uppercase tracking-wider">Date</span>
+                                    <span className="text-slate-700 font-bold">{animalData?.stats?.date}</span>
+                                </div>
+                                <div className="flex justify-between border-b border-slate-200 pb-1.5">
+                                    <span className="text-slate-400 font-bold uppercase tracking-wider">Location</span>
+                                    <span className="text-slate-700 text-right max-w-[60%] font-bold leading-tight">{animalData?.location}</span>
+                                </div>
+
+                                {/* Source & Report Actions */}
+                                <div className="pt-1 mt-1 flex items-center justify-between text-[10px] text-slate-400">
+                                    <div>
+                                        Source: <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-600 underline">iNaturalist</a>
+                                    </div>
+                                    <button 
+                                        onClick={handleReportIssue} 
+                                        className="flex items-center gap-1 text-slate-300 hover:text-red-400 transition-colors font-bold uppercase tracking-wider"
+                                        title="Report bad data"
+                                    >
+                                        <span>🚩</span> Report Issue
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 3. Footer Actions */}
+                            <div className="flex flex-col gap-2">
+                                
+                                {/* A. PLAY AGAIN */}
+                                <button onClick={startGame} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-lg transition-transform hover:scale-[1.02] uppercase tracking-wider text-sm">
+                                    PLAY AGAIN
+                                </button>
+
+                                {/* B. SHARE */}
+                                <button onClick={() => { sfx.play('click'); setShowShareMenu(!showShareMenu); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg transition-transform hover:scale-[1.02] uppercase tracking-wider text-sm">
+                                    {showShareMenu ? 'CLOSE OPTIONS' : 'SHARE DISCOVERY'}
+                                </button>
+                                
+                                {/* Share Options Dropdown */}
+                                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showShareMenu ? 'max-h-24 opacity-100 mb-1' : 'max-h-0 opacity-0'}`}>
+                                    <div className="flex gap-2 justify-center pt-2">
+                                        <button onClick={shareToWhatsApp} className="flex-1 bg-[#25D366] text-white py-3 rounded-xl shadow-sm hover:opacity-90">💬</button>
+                                        <button onClick={shareToFacebook} className="flex-1 bg-[#1877F2] text-white py-3 rounded-xl shadow-sm hover:opacity-90">fb</button>
+                                        <button onClick={shareToTwitter} className="flex-1 bg-black text-white py-3 rounded-xl shadow-sm hover:opacity-90">𝕏</button>
+                                        <button onClick={handleShare} className="flex-1 bg-slate-200 text-slate-600 py-3 rounded-xl shadow-sm hover:bg-slate-300">📋</button>
+                                    </div>
+                                </div>
+
+                                {/* C. JOURNAL BUTTON (Restored) */}
+                                <button 
+                                    onClick={fetchJournal} 
+                                    className={`w-full font-bold py-3 rounded-xl transition-all border-2 flex items-center justify-center gap-2 uppercase tracking-wider text-sm ${
+                                        pendingJournalEntries.length > 0 
+                                        ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-wiggle shadow-lg shadow-emerald-100' // New Entry Style
+                                        : 'bg-amber-50 border-amber-200 text-amber-900/70 hover:bg-amber-100' // Default Style
+                                    }`}
+                                >
+                                    <span className="text-lg">📖</span> 
+                                    {pendingJournalEntries.length > 0 ? "New Entry Found!" : "Field Journal"}
+                                </button>
+
+                                {/* D. EXIT */}
+                                <button onClick={handleExitGame} className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl shadow-lg transition-transform hover:scale-[1.02] uppercase tracking-wider text-sm">
+                                    EXIT TO MAIN MENU
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- GLOBAL OVERLAYS (Must include Journal Logic) --- */}
+            {showSettings && <SettingsModal />}
+            {journalModal}
+            {isOfflineMode && <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[80] bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-bounce flex items-center gap-2 whitespace-nowrap"><span>⚠️</span> Server Offline: Using Backup Data</div>}
+            
+            {showJournal && pendingJournalEntries.length > 0 && (
+                <NewDiscoveryModal 
+                    pendingAnimals={pendingJournalEntries}
+                    onConfirmOne={handleConfirmJournalEntry}
+                    onConfirmAll={handleConfirmAllJournal}
+                    allAnimalsFlat={ALL_ANIMALS_FLAT}
+                />
+            )}
+        </div>
+    );
+};
     export default WildGuessGame;
