@@ -1697,83 +1697,138 @@ const endGame = async (result) => {
             <div className={`flex-1 relative flex flex-col items-center p-4 overflow-hidden bg-slate-900 text-white h-full transition-all duration-1000 ease-in-out ${currentClueIndex >= 1 ? 'justify-start pt-28' : 'justify-center'}`}>
                 
                 {/* --- LAYER 0: BACKGROUND MAP --- */}
-                {/* Clue 1: Blurred Map Background. Clue 2+: Sharp Map */}
                 <div className={`absolute inset-0 z-0 transition-all duration-1000 transform ${currentClueIndex === 0 ? 'blur-lg opacity-50 scale-110' : 'blur-0 opacity-100 scale-100'}`}>
                     <MapClue lat={animalData.lat} lng={animalData.lng} zoom={currentClueIndex <= 1 ? 4 : 11} />
-                    
                     {/* FLAT TINT ONLY - No Gradient */}
                     <div className={`absolute inset-0 bg-black transition-opacity duration-1000 ${currentClueIndex === 0 ? 'opacity-30' : 'opacity-10'}`}></div>
                 </div>
 
                 {/* --- LAYER 1: TOP INFO BAR --- */}
-                <div className="absolute top-0 left-0 w-full p-4 z-20 flex justify-between items-start pointer-events-none">
-                    <div className="flex flex-col items-start gap-2">
+                <div className="absolute top-0 left-0 w-full p-4 z-20 flex flex-col items-start gap-2 pointer-events-none">
+                    
+                    {/* ROW 1: Clue Count + Score */}
+                    <div className="flex flex-row items-center gap-2">
                         <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 text-xs font-bold text-emerald-400 shadow-sm">
                             Clue {currentClueIndex + 1}/5
                         </div>
-                        {/* Location Name (Appears Round 2) */}
-                        <div className={`transition-all duration-700 origin-left ${currentClueIndex >= 1 ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
-                            <h2 className="text-white text-lg md:text-2xl font-black drop-shadow-md leading-tight text-left max-w-[200px] md:max-w-md bg-black/40 backdrop-blur-sm p-2 rounded-lg border border-white/10">
-                                {animalData.location}
-                            </h2>
+                        <div className="bg-emerald-600/90 backdrop-blur-md px-2 py-1 rounded-lg shadow-lg border border-emerald-400/50 flex flex-col items-center min-w-[40px]">
+                            <span className="text-white font-black text-sm leading-none">{roundScore}</span>
+                            <span className="text-[7px] uppercase font-bold text-emerald-100 leading-none">PTS</span>
                         </div>
                     </div>
-                    <div className="bg-emerald-600/90 backdrop-blur-md px-3 py-2 rounded-xl shadow-lg border-2 border-emerald-400/50 flex flex-col items-center min-w-[60px]">
-                        <span className="text-white font-black text-xl leading-none">{roundScore}</span>
-                        <span className="text-[8px] uppercase font-bold text-emerald-100 leading-none mt-0.5">PTS</span>
+
+                    {/* ROW 2: Location Name */}
+                    <div className={`transition-all duration-700 ease-out origin-top-left ${
+                        currentClueIndex >= 1 
+                        ? 'opacity-100 scale-100 max-h-40' 
+                        : 'opacity-0 scale-95 max-h-0 overflow-hidden'
+                    }`}>
+                        <h2 className="text-white text-xs md:text-2xl font-black drop-shadow-md leading-none text-left max-w-[70vw] md:max-w-md bg-black/40 backdrop-blur-sm p-2 rounded-lg border border-white/10 truncate">
+                            {animalData.location}
+                        </h2>
                     </div>
                 </div>
 
-                {/* --- LAYER 2: CENTER CONTENT --- */}
-                <div className="z-10 w-full max-w-md flex flex-col items-center gap-3 transition-all duration-700">
-                    {/* Clue 1: Taxonomy Card */}
-                    <div className={`transition-all duration-1000 bg-black/60 backdrop-blur-md p-5 rounded-2xl border border-white/20 shadow-2xl text-center w-full ${currentClueIndex >= 1 ? 'origin-top scale-90 opacity-90' : 'scale-100'}`}>
-                        <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Scientific Classification</p>
-                        <p className="text-2xl md:text-3xl font-serif italic text-white font-bold">
+                {/* --- LAYER 2: BOTTOM CONTENT AREA --- */}
+                
+                {/* FLEX CONTAINER LOGIC UPDATED:
+                    - Round 1 (Index 0): Center everything.
+                    - Photo Round (Index 3): 'justify-end' -> Pushes "Next" to RIGHT.
+                    - Final Round (Index 4): 'justify-center' -> Centers "Guess" box.
+                    - Other Rounds: 'justify-between' -> Splits Left Card and Right Button.
+                */}
+                <div className={`absolute left-0 w-full p-3 z-30 flex transition-all duration-700 ease-in-out
+                    ${currentClueIndex === 0 
+                        ? 'h-full flex-col items-center justify-center top-0' 
+                        : currentClueIndex === 3 
+                            ? 'h-auto bottom-0 flex-row items-end justify-end'
+                            : currentClueIndex === 4
+                                ? 'h-auto bottom-4 flex-row items-end justify-center' // <--- FIX FOR GUESS BUTTON
+                                : 'h-auto bottom-0 flex-row items-end justify-between'
+                    }
+                    md:relative md:inset-auto md:h-full md:flex-col md:items-center md:justify-end md:gap-3 md:p-0 md:pt-16
+                `}>
+                    
+                    {/* LEFT SIDE: Taxonomy Card */}
+                    <div className={`transition-all duration-1000 bg-black/80 backdrop-blur-md p-4 md:p-5 rounded-2xl border border-white/20 shadow-2xl text-center md:text-center flex-shrink-0 
+                        ${currentClueIndex === 0 ? 'w-[90%] scale-110 mb-0' : 'w-[65%] scale-100 mb-0 text-left'} 
+                        md:w-full md:max-w-md md:scale-100 md:text-center
+                        ${currentClueIndex >= 3 ? 'hidden md:block' : 'block'}
+                    `}>
+                        <p className="text-[8px] md:text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-0.5 md:mb-1">Scientific Classification</p>
+                        
+                        <p className={`font-serif italic text-white font-bold leading-tight truncate transition-all ${currentClueIndex === 0 ? 'text-2xl' : 'text-sm'} md:text-3xl`}>
                             {animalData.sciName}
                         </p>
-                        <p className="text-xs text-slate-300 mt-1 font-mono uppercase tracking-wide">{animalData.family}</p>
-                        <div className="mt-3 pt-3 border-t border-white/10">
-                            <p className="text-white font-medium italic text-sm md:text-base">"{animalData.stats.trait}"</p>
+                        
+                        <p className="text-[9px] md:text-xs text-slate-300 mt-0.5 md:mt-1 font-mono uppercase tracking-wide truncate">{animalData.family}</p>
+                        
+                        <div className="mt-1.5 md:mt-3 pt-1.5 md:pt-3 border-t border-white/10">
+                            <p className="text-white font-medium italic text-[10px] md:text-base leading-tight line-clamp-2 md:line-clamp-none">"{animalData.stats.trait}"</p>
                         </div>
+
+                        {/* Mobile Sound Button (Inside Card) */}
+                        {currentClueIndex >= 2 && (
+                            <button 
+                                className="mt-2 bg-emerald-600 hover:bg-emerald-500 text-white w-full py-2 rounded-lg shadow-sm flex md:hidden items-center justify-center gap-2"
+                                onClick={() => animalData.soundUrl ? new Audio(animalData.soundUrl).play() : alert("🔊 No audio yet!")}
+                            >
+                                <span className="text-sm">🔊</span>
+                                <span className="font-bold uppercase text-[9px] tracking-wider">Play</span>
+                            </button>
+                        )}
                     </div>
 
-                    {/* Clue 4: Photo Card (Sharper Blur) */}
-                    {currentClueIndex >= 3 && (
-                        <div className="w-full relative animate-pop mt-1">
-                            <div className="aspect-video bg-slate-800 rounded-xl overflow-hidden border-2 border-white/30 shadow-2xl relative">
-                                <img src={animalData.image} alt="Clue" className="w-full h-full object-cover blur-[2px] scale-105" />
-                                <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
-                                    <span className="text-5xl font-black text-white/90 drop-shadow-lg">?</span>
-                                </div>
+                    {/* RIGHT SIDE: Next/Guess Button */}
+                    <div className={`flex flex-col gap-2 items-end md:items-center transition-all duration-700
+                        ${currentClueIndex === 0 ? 'absolute bottom-4 right-4 w-auto' 
+                            : currentClueIndex === 4 ? 'relative w-auto' // <--- Center Width Logic
+                            : 'relative w-[30%]'
+                        }
+                        md:relative md:inset-auto md:w-auto
+                    `}>
+                        
+                        {/* Desktop Sound Button */}
+                        {currentClueIndex >= 2 && (
+                            <button 
+                                className="hidden md:flex bg-emerald-600 hover:bg-emerald-500 text-white w-full max-w-xs py-3 rounded-xl shadow-lg items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 animate-pop"
+                                onClick={() => animalData.soundUrl ? new Audio(animalData.soundUrl).play() : alert("🔊 No audio yet!")}
+                            >
+                                <span className="text-xl">🔊</span>
+                                <span className="font-bold uppercase text-xs tracking-wider">Play Sound</span>
+                            </button>
+                        )}
+
+                        {currentClueIndex < 4 ? (
+                            <button 
+                                onClick={() => { sfx.play('click'); skipClue(); }}
+                                className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-black py-3 px-6 md:px-10 rounded-xl md:rounded-full shadow-lg shadow-amber-500/20 transition-transform active:scale-95 uppercase tracking-wider text-[10px] md:text-xs flex flex-col md:flex-row items-center justify-center gap-0.5 md:gap-2 border-2 border-amber-300/50 w-full md:w-auto h-full"
+                            >
+                                <span>Next</span>
+                                <span className="bg-amber-900/20 px-1.5 py-0.5 rounded text-[9px] font-bold">-1 Pt</span>
+                            </button>
+                        ) : (
+                            <div className="bg-red-500 text-white px-8 py-3 rounded-full font-bold text-xs uppercase shadow-lg animate-pulse border-2 border-red-400 text-center">
+                                Make Your Guess →
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
-                {/* --- LAYER 3: BOTTOM CONTROLS --- */}
-                <div className="absolute bottom-0 left-0 w-full p-4 flex flex-col items-center justify-end z-30 pt-16 gap-3">
-                    {currentClueIndex >= 2 && (
-                        <button 
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white w-full max-w-xs py-3 rounded-xl shadow-lg flex items-center justify-center gap-3 transition-all hover:scale-[1.02] active:scale-95 animate-pop mb-1"
-                            onClick={() => animalData.soundUrl ? new Audio(animalData.soundUrl).play() : alert("🔊 No audio yet!")}
-                        >
-                            <span className="text-xl">🔊</span>
-                            <span className="font-bold uppercase text-xs tracking-wider">Play Sound</span>
-                        </button>
-                    )}
-                    {currentClueIndex < 4 ? (
-                        <button onClick={() => { sfx.play('click'); skipClue(); }} className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-black py-3 px-10 rounded-full shadow-lg shadow-amber-500/20 transition-transform active:scale-95 uppercase tracking-wider text-xs flex items-center gap-2 border-2 border-amber-300/50">
-                            <span>Next Clue</span><span className="bg-amber-900/20 px-2 py-0.5 rounded text-[10px] font-bold">-1 Pt</span>
-                        </button>
-                    ) : (
-                        <div className="bg-red-500 text-white px-6 py-2 rounded-full font-bold text-xs uppercase shadow-lg animate-pulse border-2 border-red-400">Make Your Guess →</div>
-                    )}
-                </div>
+                {/* --- LAYER 2b: CENTER CONTENT (PHOTO ONLY) --- */}
+                {currentClueIndex >= 3 && (
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-full max-w-md px-4 md:relative md:top-auto md:left-auto md:translate-x-0 md:translate-y-0 md:mt-2">
+                        <div className="aspect-video bg-slate-800 rounded-xl overflow-hidden border-2 border-white/30 shadow-2xl relative animate-pop">
+                            <img src={animalData.image} alt="Clue" className="w-full h-full object-cover blur-md scale-110" />
+                            <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                                <span className="text-5xl font-black text-white/90 drop-shadow-lg">?</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
-
 
         if (view === 'menu') {
             return (
@@ -2129,29 +2184,48 @@ const endGame = async (result) => {
             {/* --- RIGHT PANEL --- */}
             <div className="h-[45%] md:h-full md:w-96 bg-slate-50 overflow-hidden border-t md:border-t-0 md:border-l border-slate-200 order-2 flex flex-col shadow-xl z-40 relative">
                 {currentClueIndex === 4 ? (
-                    <div className="flex-1 flex flex-col p-6 items-center justify-center bg-slate-100">
-                        <div className="text-center mb-6">
-                            <h3 className="text-xl font-black text-slate-800 uppercase tracking-wide">Final Chance</h3>
-                            <p className="text-slate-500 text-sm font-bold mt-1">Select the correct animal (+1 Pt)</p>
+                    /* --- OPTION A: FINAL ROUND (MULTIPLE CHOICE) --- */
+                    <div className="flex-1 flex flex-col p-2 md:p-6 items-center justify-center bg-slate-100 overflow-hidden">
+                        
+                        {/* Header: Compact on mobile */}
+                        <div className="text-center mb-2 md:mb-6 flex-shrink-0">
+                            <h3 className="text-lg md:text-xl font-black text-slate-800 uppercase tracking-wide">Final Chance</h3>
+                            <p className="text-slate-500 text-xs md:text-sm font-bold mt-0.5 md:mt-1">Select the correct animal (+1 Pt)</p>
                         </div>
-                        <div className="w-full space-y-3">
+                        
+                        {/* Options List: Scrollable & Compact on mobile */}
+                        <div className="w-full flex-1 overflow-y-auto custom-scroll space-y-2 md:space-y-3 px-1">
                             {generateOptions(animalData).map((opt, i) => (
-                                <button key={i} onClick={() => handleFinalGuess(opt)} className="w-full bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-bold py-4 px-6 rounded-xl shadow-sm border-2 border-slate-200 hover:border-emerald-400 transition-all text-left flex items-center justify-between group animate-fade-in-up" style={{ animationDelay: `${i * 100}ms` }}>
-                                    <span className="text-sm uppercase tracking-wider">{opt}</span><span className="text-slate-300 group-hover:text-emerald-500 text-lg">➜</span>
+                                <button
+                                    key={i}
+                                    onClick={() => handleFinalGuess(opt)}
+                                    /* RESPONSIVE STYLING:
+                                       - Mobile: py-3, px-4, text-xs
+                                       - Desktop: py-4, px-6, text-sm
+                                    */
+                                    className="w-full bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-bold py-3 md:py-4 px-4 md:px-6 rounded-xl shadow-sm border-2 border-slate-200 hover:border-emerald-400 transition-all text-left flex items-center justify-between group animate-fade-in-up flex-shrink-0"
+                                    style={{ animationDelay: `${i * 100}ms` }}
+                                >
+                                    <span className="text-xs md:text-sm uppercase tracking-wider truncate mr-2">{opt}</span>
+                                    <span className="text-slate-300 group-hover:text-emerald-500 text-sm md:text-lg">➜</span>
                                 </button>
                             ))}
                         </div>
                     </div>
                 ) : (
+                    /* --- OPTION B: STANDARD GUESSING (SEARCH & CATEGORIES) --- */
+                    // ... (Keep your existing Option B code exactly as it is)
                     <>
                         <div className="p-3 border-b border-slate-200 bg-white flex-shrink-0 z-10 shadow-sm">
-                            <div className="relative">
+                           {/* ... keep existing search bar code ... */}
+                           <div className="relative">
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
                                 <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search animals..." disabled={guessLocked} className="w-full pl-9 pr-3 py-2.5 bg-slate-100 border-none rounded-xl text-sm font-bold text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-emerald-500 transition-all" />
                                 {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">✕</button>}
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto custom-scroll p-2 content-start bg-slate-50">
+                            {/* ... keep existing list logic ... */}
                             {searchTerm ? (
                                 <div className="grid grid-cols-1 gap-2">
                                     {ALL_ANIMALS_FLAT.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).map((animal, idx) => {
