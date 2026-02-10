@@ -18,6 +18,11 @@ const SFX_CONFIG = {
 
     { url: 'https://assets.mixkit.co/active_storage/sfx/1104/1104-preview.mp3', volume: 0.4 },
 
+    incorrect: { 
+        url: 'https://assets.mixkit.co/active_storage/sfx/6/6-preview.mp3', 
+        volume: 1 
+    },
+
 
     error: [
         { url: 'https://assets.mixkit.co/active_storage/sfx/216/216-preview.mp3', volume: 0.025 },
