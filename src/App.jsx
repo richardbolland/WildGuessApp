@@ -1,7 +1,7 @@
         import { useState, useEffect, useRef, useMemo } from 'react';
         import L from 'leaflet';
         import 'leaflet/dist/leaflet.css';
-        import { ANIMAL_GROUPS } from './animals';
+        import { ANIMAL_GROUPS } from './animals2';
         import { auth, db, analytics } from './firebase';
         import { logEvent } from "firebase/analytics";
         import { sfx } from './sounds';
@@ -181,69 +181,97 @@ const weekKey = `${now.getFullYear()}-W${weekNum}`; // "2023-W43"
 return { dayKey, weekKey };
 };
 
-        // --- HELPER: Filter Low Quality Records ---
+// --- HELPER: Filter Low Quality Records ---
 const isLowQualityRecord = (record) => {
-    // 1. Check Annotations (The most accurate check)
+    // 1. Check Annotations (Hardened Logic)
     if (record.annotations && record.annotations.length > 0) {
         for (const note of record.annotations) {
-            // Attribute 22 = "Evidence of Presence"
-            // Value 24 = "Organism" (The actual animal)
+            const attrId = Number(note.attribute_id);
+            const valId = Number(note.value_id);
+
+            // Attribute 17 = "Alive or Dead" -> Value 19 = "Dead"
+            if (attrId === 17 && valId === 19) return true;
+
+            // Attribute 22 = "Evidence of Presence" -> Value 24 = "Organism" (The actual animal)
             // If Evidence IS set, but it is NOT 24 (Organism), it's bad (e.g. Scat, Track, Molt, Bone)
-            if (note.attribute_id === 22 && note.value_id !== 24) return true;
+            if (attrId === 22 && valId !== 24) return true;
             
-            // Specific "Bad" Values to catch:
+            // General "Bad" Values fallback check
             // 19=Dead, 23=Feather, 25=Scat, 26=Track, 27=Bone, 28=Molt, 29=Gall, 30=Egg
             const badIds = [19, 23, 25, 26, 27, 28, 29, 30];
-            if (badIds.includes(note.value_id)) return true;
+            if (badIds.includes(valId)) return true;
         }
     }
 
-    // 2. Check Dynamic Properties (JSON strings often found in iNaturalist data)
+    // 2. Check Dynamic Properties
     const dynProps = (record.dynamicProperties || "").toLowerCase().replace(/\s/g, "");
     if (dynProps.includes('"evidenceofpresence":"track"') || 
         dynProps.includes('"evidenceofpresence":"scat"') || 
         dynProps.includes('"vitality":"dead"')) return true;
 
-    // 3. Check Text Fields (Description, Tags, Field Notes)
-        const bannedKeywords = [
-            "track", "print", "footprint", "paw", "scat", "feces", "dropping", "poop", "dung", 
-            "burrow", "nest", "den", "moult", "shed", "dead", "roadkill", "carcass", 
-            "remains", "bone", "skull", "skeleton", "corpse", "specimen", "taxidermy"
-        ];
+    // 3. Check Text Fields (Added "construction")
+    const bannedKeywords = [
+        "track", "print", "footprint", "paw", "scat", "feces", "dropping", "poop", "dung", 
+        "burrow", "nest", "den", "moult", "shed", "dead", "roadkill", "carcass", 
+        "remains", "bone", "skull", "skeleton", "corpse", "specimen", "taxidermy",
+        "construction", "web"
+    ];
 
-        const textFields = [
-            record.description, 
-            record.occurrenceRemarks, 
-            record.fieldNotes, 
-            record.media?.[0]?.description, 
-            record.media?.[0]?.title, 
-            (record.tags || []).join(" ") 
-        ].filter(Boolean).join(" ").toLowerCase();
+    const textFields = [
+        record.description, 
+        record.occurrenceRemarks, 
+        record.fieldNotes, 
+        record.media?.[0]?.description, 
+        record.media?.[0]?.title, 
+        (record.tags || []).join(" ") 
+    ].filter(Boolean).join(" ").toLowerCase();
 
-        return bannedKeywords.some(keyword => textFields.includes(keyword));
-    };
+    return bannedKeywords.some(keyword => textFields.includes(keyword));
+};
 
         // --- COMPONENT: CountdownScreen ---
+    // --- COMPONENT: CountdownScreen ---
     const CountdownScreen = ({ onComplete, stickers, isReady }) => {
         const [count, setCount] = useState(3);
         const [emoji, setEmoji] = useState("🦁");
+        const [msgIndex, setMsgIndex] = useState(0); // Track which message to show
+        
         const emojis = ["🦁", "🐯", "🐻", "🐨", "🐼", "🐸", "🐙", "🦊", "🦓", "🦄", "🦅", "🐝", "🦀", "🦖"];
+        
+        const loadingMessages = [
+            "Acquiring Target Data...",
+            "Triangulating Coordinates...",
+            "Sourcing High-Res Photos...",
+            "Generating Cryptic Clues...",
+            "Consulting Local Biologists...",
+            "Reversing Global Warming...", 
+            "Calibrating Satellites..."
+        ];
 
-            // 1. Play Sound ONCE when the screen loads
+        // 1. Play Sound ONCE when the screen loads
         useEffect(() => {
             sfx.play('countdown');
         }, []);
 
-// 2. Timer Logic (Silent)
+        // 2. Timer Logic (Silent)
         useEffect(() => {
             if (count > 0) {
-        // Removed sfx.play call from here
                 const timer = setTimeout(() => setCount(c => c - 1), 1000);
                 return () => clearTimeout(timer);
             }
         }, [count]);
 
-            // Completion Logic (Wait for Data)
+        // 3. Message Rotation Logic (Only runs when waiting)
+        useEffect(() => {
+            if (count === 0 && !isReady) {
+                const interval = setInterval(() => {
+                    setMsgIndex(prev => (prev + 1) % loadingMessages.length);
+                }, 1800); // Change text every 1.8 seconds
+                return () => clearInterval(interval);
+            }
+        }, [count, isReady]);
+
+        // 4. Completion Logic (Wait for Data)
         useEffect(() => {
             if (count === 0 && isReady) {
                 const timer = setTimeout(onComplete, 500);
@@ -251,6 +279,7 @@ const isLowQualityRecord = (record) => {
             }
         }, [count, isReady, onComplete]);
 
+        // 5. Emoji Shuffle Logic
         useEffect(() => {
             const interval = setInterval(() => {
                 setEmoji(emojis[Math.floor(Math.random() * emojis.length)]);
@@ -263,27 +292,27 @@ const isLowQualityRecord = (record) => {
                 <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
                     {stickers && stickers.map((sticker) => (
                         <div key={sticker.id} className="absolute emoji-sticker transition-transform duration-1000 ease-in-out" style={{ top: `${sticker.top}%`, left: `${sticker.left}%`, fontSize: `${sticker.size}rem`, transform: `rotate(${sticker.rotation}deg)`, opacity: sticker.opacity }}>{sticker.emoji}</div>
-                        ))}
+                    ))}
                 </div>
                 <div className="relative z-10 flex flex-col items-center">
                     <h2 className="text-4xl font-black mb-8 animate-pulse text-emerald-100 drop-shadow-md tracking-wider uppercase">GET READY</h2>
 
-                        {/* Dynamic Counter Text */}
+                    {/* Dynamic Counter Text */}
                     <div className="text-9xl mb-8 font-mono font-bold drop-shadow-2xl text-white">
                         {count > 0 ? count : (isReady ? "GO!" : <span className="text-6xl animate-pulse">📡</span>)}
                     </div>
 
-                        {/* Status Message if Waiting */}
+                    {/* Status Message (Rotates if Waiting) */}
                     {count === 0 && !isReady && (
-                        <div className="text-emerald-200 font-mono font-bold uppercase tracking-widest animate-pulse mb-4">
-                            Acquiring Target Data...
+                        <div className="text-emerald-200 font-mono font-bold uppercase tracking-widest animate-pulse mb-4 text-center px-4 h-8 transition-all duration-300">
+                            {loadingMessages[msgIndex]}
                         </div>
-                        )}
+                    )}
 
                     <div className="text-7xl swap-anim filter drop-shadow-xl">{emoji}</div>
                 </div>
             </div>
-            );
+        );
     };
 
         // --- COMPONENT: NewDiscoveryModal ---
@@ -373,6 +402,28 @@ const isLowQualityRecord = (record) => {
             );
     };
 
+    // 1. Define the Region IDs
+const REGION_IDS = {
+    "Any": null,
+    "Africa": 97392,
+    "Asia": 97395,
+    "Europe": 97391,
+    "North America": 97394,
+    "South America": 97389,
+    "Oceania": 97393,
+};
+
+// 2. Define the Dropdown Options
+const REGION_OPTIONS = [
+    { label: "🌎 Any Region", value: "Any" },
+    { label: "🌍 Africa", value: "Africa" },
+    { label: "🌏 Asia", value: "Asia" },
+    { label: "🌍 Europe", value: "Europe" },
+    { label: "🌎 North America", value: "North America" },
+    { label: "🌎 South America", value: "South America" },
+    { label: "🌏 Oceania (Australia/NZ)", value: "Oceania" },
+];
+
         // --- MAIN COMPONENT: WildGuessGame ---
 const WildGuessGame = () => {
     // --- STATE HOOKS ---
@@ -408,6 +459,8 @@ const WildGuessGame = () => {
     const isGoogleLoginInProgress = useRef(false);
     const [isOfflineMode, setIsOfflineMode] = useState(false);
     const [showShareMenu, setShowShareMenu] = useState(false);
+    const [targetRegion, setTargetRegion] = useState("Any");
+
 
     // --- LOADING & TUTORIAL STATE ---
     const [isLoading, setIsLoading] = useState(false);
@@ -663,7 +716,12 @@ const WildGuessGame = () => {
         return () => clearInterval(interval);
     }, [isLoading]);
 
-    useEffect(() => { preloadNextGame(); }, []);
+    useEffect(() => { 
+        // Whenever the Region changes:
+        console.log(`🔄 [Effect] Region changed to ${targetRegion}. Clearing old preload and fetching new...`);
+        setPreloadedData(null); // 1. Clear the "Swan" (or whatever was there)
+        preloadNextGame();      // 2. Start fetching a new animal for the NEW region
+    }, [targetRegion]);         // 3. This dependency ensures it runs every time the dropdown changes
 
     useEffect(() => {
         if (view === 'menu') fetchLeaderboard(leaderboardTab);
@@ -749,77 +807,107 @@ const WildGuessGame = () => {
     }, [view]);
 
     const fetchValidAnimal = async (attempt = 1) => {
-        if (attempt > 3) {
-            setIsOfflineMode(true); 
+        // 1. FAILSAFE (Backup)
+        if (attempt > 3) { // Reduced attempts because "All-In" shouldn't fail multiple times
+            console.warn("⚠️ [Fetch] Search Failed. Switching to backup.");
+            setIsOfflineMode(true);
             return BACKUP_ANIMALS[Math.floor(Math.random() * BACKUP_ANIMALS.length)];
         }
+
+        // 2. GET IDs FROM YOUR DATA
         const historyJSON = localStorage.getItem('wildGuess_played');
-        const reportedJSON = localStorage.getItem('wildGuess_reported'); 
-        let played = historyJSON ? JSON.parse(historyJSON) : [];
-        let reported = reportedJSON ? JSON.parse(reportedJSON) : [];
-        const undiscovered = ALL_ANIMALS_FLAT.filter(a => !unlockedAnimals.has(a.name));
-        const validUndiscovered = undiscovered.filter(a => !played.includes(a.name));
-        let target;
-        if (validUndiscovered.length > 0) {
-            target = validUndiscovered[Math.floor(Math.random() * validUndiscovered.length)];
-        } else {
-            const available = ALL_ANIMALS_FLAT.filter(a => !played.includes(a.name));
-            if (available.length === 0) {
-                played = []; localStorage.removeItem('wildGuess_played');
-                target = ALL_ANIMALS_FLAT[Math.floor(Math.random() * ALL_ANIMALS_FLAT.length)];
-            } else {
-                target = available[Math.floor(Math.random() * available.length)];
-            }
+        const played = historyJSON ? JSON.parse(historyJSON) : [];
+        
+        // Get animals not recently played
+        let availableAnimals = ALL_ANIMALS_FLAT.filter(a => !played.includes(a.name));
+        
+        // If we're running low on options, reset to the full list
+        if (availableAnimals.length < 5) availableAnimals = ALL_ANIMALS_FLAT;
+
+        // 3. PREPARE THE "ALL-IN" ID LIST
+        // We limit to 150 to stay within safe URL limits (approx 2000 chars)
+        // This effectively sends your WHOLE game roster to the API.
+        const targetIds = availableAnimals
+            .slice(0, 150) 
+            .map(a => a.id)
+            .join(',');
+
+        // 4. CONSTRUCT URL
+        // We removed 'without_term_value_id' to prevent API conflicts.
+        // We rely on the client-side filter (Step 5) to remove scat/dead animals.
+        let fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_id=${targetIds}&quality_grade=research&photos=true&per_page=100`;
+
+        if (targetRegion !== "Any" && REGION_IDS[targetRegion]) {
+            fetchUrl += `&place_id=${REGION_IDS[targetRegion]}`;
         }
-        if (!played.includes(target.name)) {
-            played.push(target.name);
-            localStorage.setItem('wildGuess_played', JSON.stringify(played));
-        }
-        const randomPage = Math.floor(Math.random() * 30) + 1; 
-        const excludeTerms = "19,23,25,26,27,28,29,30"; 
-        const allowedLicenses = "cc0,cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa";
-        const excludeTaxa = "47144,47126,47170"; 
-        const fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_name=${target.sciName}&quality_grade=research&photos=true&per_page=1&page=${randomPage}&without_taxon_id=${excludeTaxa}&without_term_value_id=${excludeTerms}&photo_license=${allowedLicenses}`;
+
+        console.log(`🚀 [Debug] Attempt ${attempt}. Asking for ALL ${availableAnimals.length} animals in region: ${targetRegion}`);
 
         try {
             const response = await fetch(fetchUrl);
             if (!response.ok) throw new Error(`Server Error: ${response.status}`);
             const data = await response.json();
-            if (!data.results || data.results.length === 0) return fetchValidAnimal(attempt + 1); 
-            const obs = data.results[0];
-            if (reported.includes(obs.id) || globalBlacklist.includes(obs.id)) return fetchValidAnimal(attempt);
-            const obsSciName = obs.taxon?.name?.toLowerCase() || "";
-            const targetSciName = target.sciName.toLowerCase();
-            if (!obsSciName.includes(targetSciName)) return fetchValidAnimal(attempt);
-            if (isLowQualityRecord(obs)) return fetchValidAnimal(attempt);
-            const lat = obs.geojson?.coordinates[1] || obs.location?.split(',')[0];
-            const lng = obs.geojson?.coordinates[0] || obs.location?.split(',')[1];
-            if (!lat || !lng || !obs.photos || obs.photos.length === 0) return fetchValidAnimal(attempt + 1); 
-            const dateObj = new Date(obs.observed_on || obs.created_at);
-            const dateStr = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-            setIsOfflineMode(false);
-            return {
-                id: obs.id, 
-                name: target.name,            
-                correctName: target.name, 
-                sciName: target.displayLatin || target.sciName,       
-                family: target.family || "Unknown Family", 
-                image: obs.photos[0].url.replace('square', 'original').replace('small', 'original').replace('medium', 'original').replace('large', 'original'),
-                lat: parseFloat(lat),
-                lng: parseFloat(lng),
-                location: obs.place_guess || "Unknown Wilderness",
-                recordedBy: obs.user?.login || obs.user?.name || "Unknown Observer",
-                link: obs.uri,
-                stats: { trait: target.clue || target.hint || "No hint available.", date: dateStr, year: dateObj.getFullYear() }
-            };
+
+            // 5. CLIENT-SIDE FILTER (The "Safety Net")
+            // This runs YOUR function to remove scat, dead animals, etc.
+            const validResults = data.results.filter(obs => !isLowQualityRecord(obs));
+
+            if (validResults.length > 0) {
+                // Pick a random result from the valid list
+                const bestMatch = validResults[Math.floor(Math.random() * validResults.length)];
+                
+                // Find our matching game data
+                const targetGameData = ALL_ANIMALS_FLAT.find(a => a.id === bestMatch.taxon.id || a.sciName.toLowerCase() === bestMatch.taxon.name.toLowerCase());
+
+                if (targetGameData) {
+                    if (!played.includes(targetGameData.name)) {
+                        played.push(targetGameData.name);
+                        localStorage.setItem('wildGuess_played', JSON.stringify(played));
+                    }
+
+                    const randomClue = Math.random() < 0.5 ? targetGameData.clue1 : targetGameData.clue2;
+
+                    setIsOfflineMode(false);
+                    const dateObj = new Date(bestMatch.observed_on || bestMatch.created_at);
+                    const dateStr = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+                    return {
+                        id: bestMatch.id,
+                        name: targetGameData.name,
+                        correctName: targetGameData.name,
+                        sciName: targetGameData.displayLatin || targetGameData.sciName,
+                        family: targetGameData.family || "Unknown Family",
+                        image: bestMatch.photos[0].url.replace('square', 'original').replace('small', 'original').replace('medium', 'original').replace('large', 'original'),
+                        lat: parseFloat(bestMatch.geojson?.coordinates[1] || 0),
+                        lng: parseFloat(bestMatch.geojson?.coordinates[0] || 0),
+                        location: bestMatch.place_guess || "Unknown Wilderness",
+                        recordedBy: bestMatch.user?.login || "Unknown Observer",
+                        link: bestMatch.uri,
+                        stats: { trait: randomClue || "No hint available.", date: dateStr, year: dateObj.getFullYear() }
+                    };
+                }
+            }
+
+            console.log("⚠️ [Debug] No valid observations found. Retrying...");
+            return fetchValidAnimal(attempt + 1);
+
         } catch (error) {
-            await new Promise(r => setTimeout(r, 1000));
+            console.error("🔥 [Fetch] Error:", error);
+            await new Promise(r => setTimeout(r, 500));
             return fetchValidAnimal(attempt + 1);
         }
     };
 
+
     const preloadNextGame = async () => {
-        try { const data = await fetchValidAnimal(); setPreloadedData(data); } catch (e) { console.warn("Background fetch failed", e); }
+        console.log("⏳ [Preload] Starting background fetch...");
+        try { 
+            const data = await fetchValidAnimal(); 
+            setPreloadedData(data); 
+            console.log("✨ [Preload] Ready:", data.name);
+        } catch (e) { 
+            console.warn("Background fetch failed", e); 
+        }
     };
 
     const handleSaveProfile = async (chosenName) => {
@@ -878,7 +966,7 @@ const WildGuessGame = () => {
             isGoogleLoginInProgress.current = false;
         }
     };
-    
+
     const preloadImage = (src) => {
         return new Promise((resolve, reject) => {
             const img = new Image();
@@ -1179,7 +1267,26 @@ const WildGuessGame = () => {
                             <div className="flex flex-col items-center w-1/3"><span className="text-4xl mb-2 filter drop-shadow-sm">🔍</span><span className="text-[9px] md:text-[10px] font-black text-slate-700 uppercase tracking-tight leading-tight">Identify the Animal</span></div>
                         </div>
                     </div>
-                    <button onClick={startGame} onMouseEnter={() => sfx.play('hover', 0.2)} className="relative overflow-hidden text-white font-bold py-4 rounded-full shadow-[0_6px_0_#14532d] active:shadow-none active:translate-y-1 transform transition-all border-4 border-white w-full hover:scale-105 bg-green-600 hover:bg-green-500"><span className="text-2xl font-black tracking-widest uppercase drop-shadow-md">START EXPEDITION</span></button>
+                    {/* REGION SELECTOR */}
+                <div className="w-full mb-4 relative z-20">
+                    <select 
+                        value={targetRegion} 
+                        onChange={(e) => { sfx.play('click'); setTargetRegion(e.target.value); }}
+                        className="w-full bg-emerald-800 text-white font-bold py-3 px-4 rounded-xl border-4 border-white/20 shadow-lg appearance-none cursor-pointer focus:outline-none focus:border-emerald-400 text-center uppercase tracking-wide"
+                    >
+                        {REGION_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value} className="bg-white text-slate-800 font-bold text-sm py-2">
+                                {opt.label}
+                            </option>
+                        ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white text-xl">▼</div>
+                </div>
+
+                {/* START BUTTON */}
+                <button onClick={startGame} onMouseEnter={() => sfx.play('hover', 0.2)} className="relative overflow-hidden text-white font-bold py-4 rounded-full shadow-[0_6px_0_#14532d] active:shadow-none active:translate-y-1 transform transition-all border-4 border-white w-full hover:scale-105 bg-green-600 hover:bg-green-500">
+                    <span className="text-2xl font-black tracking-widest uppercase drop-shadow-md">START EXPEDITION</span>
+                </button>
                     <div className="mt-4 flex flex-col items-center gap-3 w-full">
                         {user ? (
                             <>
@@ -1291,7 +1398,7 @@ const WildGuessGame = () => {
                                 <div className="relative bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-48 h-32 md:w-64 md:h-48 flex-shrink-0 animate-pop">
                                     <img 
                                         src={animalData.image} 
-                                        className="w-full h-full object-cover blur-[8px] scale-110" 
+                                        className="w-full h-full object-cover blur-[4px] scale-110" 
                                         alt="Mystery Clue" 
                                     />
                                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
