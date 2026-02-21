@@ -79,6 +79,7 @@ if (selectedRegion === "Any") {
                         SHEET_URLS["Africa"], 
                         SHEET_URLS["Asia"],
                         SHEET_URLS["Europe"],
+                        SHEET_URLS["South America"],
                         SHEET_URLS["North America"] // <-- Added North America here!
                     ];
                     const responses = await Promise.all(urlsToFetch.map(url => fetch(url)));
@@ -123,7 +124,8 @@ if (selectedRegion === "Any") {
                                 clue1: row['Clue 1'],
                                 clue2: row['Clue 2'],
                                 family: "Unknown", 
-                                groupEmoji: row['Emoji'] 
+                                groupEmoji: row['Emoji'],
+                                region: row['region']
                             });
                         }
                         
@@ -145,7 +147,7 @@ if (selectedRegion === "Any") {
 
                 setAnimals(formattedAnimals);
 
-                
+
                 // NEW: Tell the app that THIS specific region is fully processed and ready
                 setLoadedRegion(selectedRegion); 
             } catch (err) {
