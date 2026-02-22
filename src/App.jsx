@@ -342,13 +342,13 @@
 
         // 2. Define the Dropdown Options
     const REGION_OPTIONS = [
-        { label: "🌎 Any Region", value: "Any" },
-        { label: "🌍 Africa", value: "Africa" },
-        { label: "🌏 Asia", value: "Asia" },
-        { label: "🌍 Europe", value: "Europe" },
-        { label: "🌎 North America", value: "NorthAmerica" },
-        { label: "🌎 South America", value: "South America" },
-        { label: "🌏 Oceania (Australia/NZ)", value: "Oceania" },
+        { label: "🐸 All Regions", value: "Any" },
+        { label: "🐌 Africa", value: "Africa" },
+        { label: "🦊 Asia", value: "Asia" },
+        { label: "🐧 Europe", value: "Europe" },
+        { label: "🐻 North America", value: "NorthAmerica" },
+        { label: "🐵 South America", value: "SouthAmerica" },
+        { label: "🐠 Oceania (Australia/NZ)", value: "Oceania" },
     ];
 
         // --- MAIN COMPONENT: WildGuessGame ---
@@ -397,7 +397,7 @@
         const [isTutorialMode, setIsTutorialMode] = useState(false);
         const [tutorialStep, setTutorialStep] = useState(0); 
         const [showToast, setShowToast] = useState(false);
-        const { animals, loading: dataLoading, loadedRegion } = useAnimalData(targetRegion);
+        const { animals, loading: dataLoading, loadedRegion } = useAnimalData("Any");
         const [showTimerPromo, setShowTimerPromo] = useState(false);
         const [showWikiModal, setShowWikiModal] = useState(false);
         // ⬇️ NEW: Track the currently selected journal region
@@ -454,18 +454,23 @@
         }, [ALL_ANIMALS_FLAT]);
 
 
-        // --- CHECK FOR UPDATES ---
-        useEffect(() => {
-        // Change "v1" to "v2" in the future if you want to force another pop-up!
-            const hasSeenUpdate = localStorage.getItem('wildGuess_update_v1_seen');
+        // --- CHECK FOR MASSIVE UPDATE MODAL ---
+    useEffect(() => {
+        // ⬇️ NEW: Only run this check IF the user is fully signed in and ready to play!
+        if (isProfileSetup) {
+            // Change 'wildGuess_update_v2' if you want to force it to show again for testing!
+            const hasSeenUpdate = localStorage.getItem('wildGuess_update_v2_seen'); 
             if (!hasSeenUpdate) {
-                setShowUpdateModal(true);
+                // Add a tiny 500ms delay so it pops up smoothly AFTER the login screen fades away
+                const timer = setTimeout(() => setShowUpdateModal(true), 500);
+                return () => clearTimeout(timer);
             }
-        }, []);
+        }
+    }, [isProfileSetup]); // ⬅️ NEW: Tells React to re-run this check the exact moment they finish logging in
 
         const handleCloseUpdate = () => {
             sfx.play('click');
-            localStorage.setItem('wildGuess_update_v1_seen', 'true');
+            localStorage.setItem('wildGuess_update_v2_seen', 'true');
             setShowUpdateModal(false);
         };
 
@@ -528,29 +533,36 @@
 
 
         const fetchJournal = async () => {
-            if (!user) return;
-            const queue = JSON.parse(localStorage.getItem('journal_queue') || '[]');
-            if (queue.length > 0) {
-                setPendingJournalEntries(queue);
-                setShowJournal(true);
-                return;
-            }
-            sfx.play('unlock', 0.3);
+        if (!user) return;
+
+        // ⬇️ THE FIX: Sync the Journal Dropdown to the Game's Region 
+        // (If the game is on "Any", we tell the journal to show "All")
+        setJournalRegionFilter(targetRegion === "Any" ? "All" : targetRegion);
+
+        const queue = JSON.parse(localStorage.getItem('journal_queue') || '[]');
+        if (queue.length > 0) {
+            setPendingJournalEntries(queue);
             setShowJournal(true);
-            try {
-                const gamesRef = collection(db, "games");
-                const q = query(gamesRef, where("userId", "==", user.uid), where("result", "==", "win"));
-                const querySnapshot = await getDocs(q);
-                const unlocked = new Set();
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    if (data.animalName) unlocked.add(data.animalName);
-                });
-                setUnlockedAnimals(unlocked);
-            } catch (error) {
-                console.error("Error fetching journal:", error);
-            }
-        };
+            return;
+        }
+        
+        sfx.play('unlock', 0.3);
+        setShowJournal(true);
+        
+        try {
+            const gamesRef = collection(db, "games");
+            const q = query(gamesRef, where("userId", "==", user.uid), where("result", "==", "win"));
+            const querySnapshot = await getDocs(q);
+            const unlocked = new Set();
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.animalName) unlocked.add(data.animalName);
+            });
+            setUnlockedAnimals(unlocked);
+        } catch (error) {
+            console.error("Error fetching journal:", error);
+        }
+    };
 
         const handleConfirmJournalEntry = (animalName) => {
             const newQueue = pendingJournalEntries.filter(name => name !== animalName);
@@ -749,62 +761,69 @@
         }, [view, leaderboardTab, leaderboardTier]);
 
         const fetchLeaderboard = async (tab = leaderboardTab, tier = leaderboardTier) => {
-            try {
-                let q;
-                const { dayKey, weekKey } = getDateKeys();
+        try {
+            // --- 1. ROLLING TIME WINDOW LOGIC ---
+            let startDate = null;
+            const now = new Date();
 
-                if (tab === 'daily') {
-                    const dailyCollection = collection(db, "leaderboards", "daily", dayKey);
-                    q = query(dailyCollection);
-                } else if (tab === 'weekly') {
-                    const weeklyCollection = collection(db, "leaderboards", "weekly", weekKey);
-                    q = query(weeklyCollection);
-                } else {
-                    const usersRef = collection(db, "users");
-                    q = query(usersRef);
-                }
+            if (tab === 'daily') {
+                startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000)); 
+            } else if (tab === 'weekly') {
+                startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            } else if (tab === 'monthly') {
+                startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+            }
 
-                const querySnapshot = await getDocs(q);
-                let leaders = [];
+            // --- 2. QUERY THE "USERS" COLLECTION ---
+            const usersRef = collection(db, "users");
+            
+            let q;
+            if (startDate) {
+                // ⬇️ Looks for anyone who has played recently!
+                q = query(usersRef, where("lastPlayed", ">=", startDate));
+            } else {
+                q = query(usersRef);
+            }
 
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const totalScore = data.totalScore || data.score || 0;
-                    const gamesPlayed = data.gamesPlayed || 0;
+            const querySnapshot = await getDocs(q);
+            let leaders = [];
 
-                    if (gamesPlayed > 0) {
-                    // Calculate Average (Prevent dividing by zero)
-                        const averageScore = totalScore / gamesPlayed;
+            // --- 3. FORMAT THE LEADERBOARD ---
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                const totalScore = data.totalScore || 0;
+                const gamesPlayed = data.gamesPlayed || 0;
 
-                    // Check which tier this player belongs in
-                        const isHobbyist = gamesPlayed <= 10;
-                        const isExplorer = gamesPlayed >= 11;
+                if (gamesPlayed > 0) {
+                    const averageScore = totalScore / gamesPlayed;
+                    const isHobbyist = gamesPlayed <= 10;
+                    const isExplorer = gamesPlayed >= 11;
 
-                    // Only add them to the list if they match the currently selected tier
-                        if ((tier === 'hobbyist' && isHobbyist) || (tier === 'explorer' && isExplorer)) {
-                            leaders.push({ 
-                                id: doc.id, 
-                                username: data.username,
-                                totalScore: totalScore,
-                                gamesPlayed: gamesPlayed,
-                                discoveries: data.discoveries || 0,
-                                averageScore: averageScore 
-                            });
-                        }
+                    // Filter by selected tier
+                    if ((tier === 'hobbyist' && isHobbyist) || (tier === 'explorer' && isExplorer)) {
+                        leaders.push({ 
+                            id: doc.id, 
+                            username: data.username || "Anonymous Explorer",
+                            totalScore: totalScore,
+                            gamesPlayed: gamesPlayed,
+                            discoveries: data.discoveries || 0,
+                            averageScore: averageScore 
+                        });
                     }
-                });
+                }
+            });
 
-            // Sort client-side by highest average score
-                leaders.sort((a, b) => b.averageScore - a.averageScore);
+            // Sort highest average first
+            leaders.sort((a, b) => b.averageScore - a.averageScore);
 
             // Keep only the Top 10 for the UI
-                setLeaderboardData(leaders.slice(0, 10));
+            setLeaderboardData(leaders.slice(0, 10));
 
-            } catch (error) {
-                console.error("Error fetching leaderboard:", error);
-                setLeaderboardData([]);
-            }
-        };
+        } catch (error) {
+            console.error("Error fetching leaderboard:", error);
+            setLeaderboardData([]);
+        }
+    };
 
         useEffect(() => {
             if (view === 'game' && !isTutorialMode) startTimeForClue(); 
@@ -826,10 +845,9 @@
         useEffect(() => {
             if (view === 'countdown') {
             // --- THE BOUNCER ---
-            // If the user selected a new region, but the Google Sheet hasn't finished downloading, WAIT.
-            // When the sheet finishes, loadedRegion will update, and this effect will automatically run again.
-                if (loadedRegion !== targetRegion || dataLoading) {
-                    console.log(`⏳ [Countdown] Paused. Waiting for ${targetRegion} data to finish downloading...`);
+            // ⬇️ THE FIX: Only check if the data is loading!
+                if (dataLoading) {
+                    console.log(`⏳ [Countdown] Paused. Waiting for data to finish downloading...`);
                     return; 
                 }
 
@@ -871,8 +889,9 @@
         // This watches the dropdown. It only fires when the spreadsheet finishes loading.
         useEffect(() => { 
         // 1. Wait for the Google Sheet to catch up
-            if (loadedRegion !== targetRegion || dataLoading) {
-                console.log(`⏳ [Preload] Waiting for ${targetRegion} spreadsheet to process...`);
+            // ⬇️ THE FIX: Only check if the data is loading!
+            if (dataLoading) {
+                console.log(`⏳ [Preload] Waiting for spreadsheet to process...`);
                 return; 
             }
 
@@ -887,38 +906,41 @@
 
         const fetchValidAnimal = async (attempt = 1) => {
         // 1. FAILSAFE (Increased attempts because "One by One" relies on luck)
-            if (attempt > 20) { 
-                console.warn("⚠️ [Fetch] Max attempts reached. Switching to backup.");
-                setIsOfflineMode(true);
-                return BACKUP_ANIMALS[Math.floor(Math.random() * BACKUP_ANIMALS.length)];
-            }
+        if (attempt > 20) { 
+            console.warn("⚠️ [Fetch] Max attempts reached. Switching to backup.");
+            setIsOfflineMode(true);
+            return BACKUP_ANIMALS[Math.floor(Math.random() * BACKUP_ANIMALS.length)];
+        }
 
-        // 2. PICK ONE RANDOM ANIMAL
-            const historyJSON = localStorage.getItem('wildGuess_played');
-            const played = historyJSON ? JSON.parse(historyJSON) : [];
+        // 2. GET HISTORY
+        const historyJSON = localStorage.getItem('wildGuess_played');
+        const played = historyJSON ? JSON.parse(historyJSON) : [];
 
-            let availableAnimals = ALL_ANIMALS_FLAT.filter(a => !played.includes(a.name));
+        // 3. FILTER BY REGION
+        let availableAnimals = ALL_ANIMALS_FLAT;
 
-        // If we ran out of new animals, reset to full list
-            if (availableAnimals.length === 0) availableAnimals = ALL_ANIMALS_FLAT;
+        if (targetRegion !== "Any") {
+            const cleanTarget = targetRegion.replace(/\s+/g, '').toLowerCase();
+            availableAnimals = ALL_ANIMALS_FLAT.filter(a => 
+                a.region?.replace(/\s+/g, '').toLowerCase() === cleanTarget
+            );
+        }
 
-        // --- CHANGE: PICK EXACTLY ONE ---
-            const targetAnimal = availableAnimals[Math.floor(Math.random() * availableAnimals.length)];
+        // 4. SAFETY FALLBACK
+        if (availableAnimals.length === 0) {
+            console.warn(`Oops! Couldn't find animals for ${targetRegion}, falling back to Any!`);
+            availableAnimals = ALL_ANIMALS_FLAT; 
+        }
 
-        /* // 3. DEBUG LOGS (What are we looking for?)
-        console.group(`🔎 Debugging Single Search (Attempt ${attempt})`);
-        console.log(`🎯 Target: ${targetAnimal.name}`);
-        console.log(`🆔 Taxon ID: ${targetAnimal.id}`);
-        console.log(`🌍 Region: ${targetRegion} (ID: ${REGION_IDS[targetRegion] || "Global"})`);
-        console.groupEnd();*/
+        // 5. PICK THE ANIMAL (Only declared once!)
+        const targetAnimal = availableAnimals[Math.floor(Math.random() * availableAnimals.length)];
 
-        // 4. CONSTRUCT URL (Fetch a batch of 10)
-        // We only request Research Grade with Photos. Our JS scanner handles the annotations!
-            let fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_id=${targetAnimal.id}&photo_license=cc0,cc-by,cc-by-sa&quality_grade=research&photos=true&per_page=10`;
+        // 6. CONSTRUCT URL (Fetch a batch of 10)
+        let fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_id=${targetAnimal.id}&photo_license=cc0,cc-by,cc-by-sa&quality_grade=research&photos=true&per_page=10`;
 
-            if (targetRegion !== "Any" && REGION_IDS[targetRegion]) {
-                fetchUrl += `&place_id=${REGION_IDS[targetRegion]}`;
-            }
+        if (targetRegion !== "Any" && REGION_IDS[targetRegion]) {
+            fetchUrl += `&place_id=${REGION_IDS[targetRegion]}`;
+        }
 
         /*console.log(`🚀 [Debug] URL: ${fetchUrl}`);*/
 
@@ -1333,11 +1355,17 @@
                 );
     };
 
-    // --- ⬇️ NEW: CALCULATE JOURNAL PROGRESS ⬇️ ---
+    // --- ⬇️ CALCULATE JOURNAL PROGRESS ⬇️ ---
     const filteredJournalAnimals = ALL_ANIMALS_FLAT.filter(animal => {
         if (journalRegionFilter === "All") return true;
-        return animal.region?.trim().toLowerCase() === journalRegionFilter.toLowerCase();
+        
+        // ⬇️ NEW: Strip all spaces from both sides before comparing them!
+        const cleanAnimalRegion = animal.region?.replace(/\s+/g, '').toLowerCase();
+        const cleanFilterRegion = journalRegionFilter.replace(/\s+/g, '').toLowerCase();
+        
+        return cleanAnimalRegion === cleanFilterRegion;
     });
+    
     const unlockedInCurrentView = filteredJournalAnimals.filter(a => unlockedAnimals.has(a.name)).length;
     // --- ⬆️ END CALCULATION ⬆️ ---
 
@@ -1362,8 +1390,8 @@
                                 <option value="Africa">Africa</option>
                                 <option value="Asia">Asia</option>
                                 <option value="Europe">Europe</option>
-                                <option value="North America">North America</option>
-                                <option value="South America">South America</option>
+                                <option value="NorthAmerica">North America</option> 
+                                <option value="SouthAmerica">South America</option> 
                                 <option value="Oceania">Oceania</option>
                             </select>
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-amber-700 text-xs">▼</div>
@@ -1478,18 +1506,25 @@
                                     </div>
 
                             {/* ROW 1: TIME MATRIX */}
-                                    <div className="flex bg-orange-200/50 p-1 rounded-lg">
-                                        {['daily', 'weekly', 'allTime'].map((tab) => (
+                                <div className="flex bg-orange-200/50 p-1 rounded-lg">
+                                    {['daily', 'weekly', 'monthly'].map((tab) => {
+                                        let label = "";
+                                        if (tab === 'daily') label = "24 Hours";
+                                        if (tab === 'weekly') label = "7 Days";
+                                        if (tab === 'monthly') label = "30 Days";
+
+                                        return (
                                             <button 
                                                 onMouseEnter={() => sfx.play('hover', 0.2)} 
                                                 onClick={() => { sfx.play('click', 0.1); setLeaderboardTab(tab); }} 
                                                 key={tab} 
                                                 className={`flex-1 text-[10px] font-bold uppercase py-1.5 rounded-md transition-all ${leaderboardTab === tab ? 'bg-white text-orange-600 shadow-sm scale-105' : 'text-orange-800/60 hover:text-orange-800'}`}
                                             >
-                                                {tab === 'allTime' ? 'All Time' : tab}
+                                                {label}
                                             </button>
-                                            ))}
-                                    </div>
+                                        )
+                                    })}
+                                </div>
 
                             {/* ROW 2: TIER MATRIX */}
                                     <div className="flex bg-orange-200/50 p-1 rounded-lg">

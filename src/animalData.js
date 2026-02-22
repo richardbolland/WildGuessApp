@@ -4,9 +4,9 @@ const SHEET_URLS = {
     "Africa": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqewGCZNbrYaCLnvN3EBwCLLCdy6hB3SSZ08p6slZTF-sXpC-RM1zeIS8LSklyPeRp73xDL1IAO5_o/pub?gid=0&single=true&output=csv", 
     "Asia": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqewGCZNbrYaCLnvN3EBwCLLCdy6hB3SSZ08p6slZTF-sXpC-RM1zeIS8LSklyPeRp73xDL1IAO5_o/pub?gid=1068676948&single=true&output=csv",
     "Europe": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqewGCZNbrYaCLnvN3EBwCLLCdy6hB3SSZ08p6slZTF-sXpC-RM1zeIS8LSklyPeRp73xDL1IAO5_o/pub?gid=1320626933&single=true&output=csv",
-    "North America": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqewGCZNbrYaCLnvN3EBwCLLCdy6hB3SSZ08p6slZTF-sXpC-RM1zeIS8LSklyPeRp73xDL1IAO5_o/pub?gid=1830200360&single=true&output=csv", // <-- Added the space here!
-    "South America": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqewGCZNbrYaCLnvN3EBwCLLCdy6hB3SSZ08p6slZTF-sXpC-RM1zeIS8LSklyPeRp73xDL1IAO5_o/pub?gid=1119979844&single=true&output=csv",
-    "Oceania": "https://docs.google.com/spreadsheets/d/e/YOUR_OCEANIA_LINK_HERE/pub?output=csv",
+    "NorthAmerica": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqewGCZNbrYaCLnvN3EBwCLLCdy6hB3SSZ08p6slZTF-sXpC-RM1zeIS8LSklyPeRp73xDL1IAO5_o/pub?gid=1830200360&single=true&output=csv", // <-- Added the space here!
+    "SouthAmerica": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqewGCZNbrYaCLnvN3EBwCLLCdy6hB3SSZ08p6slZTF-sXpC-RM1zeIS8LSklyPeRp73xDL1IAO5_o/pub?gid=1119979844&single=true&output=csv",
+    "Oceania": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqewGCZNbrYaCLnvN3EBwCLLCdy6hB3SSZ08p6slZTF-sXpC-RM1zeIS8LSklyPeRp73xDL1IAO5_o/pub?gid=868971470&single=true&output=csv",
     
     // FALLBACK
     "Any": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQqewGCZNbrYaCLnvN3EBwCLLCdy6hB3SSZ08p6slZTF-sXpC-RM1zeIS8LSklyPeRp73xDL1IAO5_o/pub?gid=0&single=true&output=csv", 
@@ -49,6 +49,9 @@ const parseCSV = (text) => {
         if (currentRow.length > 1) rows.push(currentRow);
     }
 
+    // ⬇️ NEW SAFETY NET: If the sheet is empty or broken, stop here!
+    if (rows.length === 0) return [];
+
     // Map the values to the header names
     const headers = rows[0].map(h => h.replace(/^"|"$/g, ''));
     
@@ -79,9 +82,11 @@ if (selectedRegion === "Any") {
                         SHEET_URLS["Africa"], 
                         SHEET_URLS["Asia"],
                         SHEET_URLS["Europe"],
-                        SHEET_URLS["South America"],
-                        SHEET_URLS["North America"] // <-- Added North America here!
-                    ];
+                        SHEET_URLS["NorthAmerica"], // ⬅️ Removed the space!
+                        SHEET_URLS["SouthAmerica"], // ⬅️ Added South America!
+                        SHEET_URLS["Oceania"]       // ⬅️ Added Oceania!
+                    ].filter(Boolean); // ⬅️ PRO TIP: This filters out any 'undefined' links safely!
+                    
                     const responses = await Promise.all(urlsToFetch.map(url => fetch(url)));
                     const texts = await Promise.all(responses.map(res => res.text()));
                     
