@@ -1,7 +1,7 @@
         import { useState, useEffect, useRef, useMemo } from 'react';
         import L from 'leaflet';
         import 'leaflet/dist/leaflet.css';
-        import { ANIMAL_GROUPS } from './animals';
+        import { useAnimalData } from './animalData';
         import { auth, db, analytics } from './firebase';
         import { logEvent } from "firebase/analytics";
         import { sfx } from './sounds';
@@ -32,218 +32,173 @@
             arrayUnion
         } from "firebase/firestore";
 
-        // Flatten data for easy access
-        const ALL_ANIMALS_FLAT = ANIMAL_GROUPS.reduce((acc, group) => {
-            return acc.concat(group.animals.map(a => ({...a, group: group.name, groupEmoji: group.emoji})));
-        }, []).sort((a, b) => a.name.localeCompare(b.name));
 
-        // --- FAILSAFE DATA (Use when API is down) ---
-        const FALLBACK_ANIMALS = [
-            {
-                id: "backup_1",
-                name: "Lion",
-                correctName: "Lion",
-                sciName: "Panthera leo",
-                family: "Felidae",
-                image: "https://upload.wikimedia.org/wikipedia/commons/7/73/Lion_waiting_in_Namibia.jpg",
-                lat: -2.333,
-        lng: 34.833, // Serengeti
-        location: "Serengeti National Park, Tanzania",
-        recordedBy: "Offline_Backup",
-        link: "https://en.wikipedia.org/wiki/Lion",
-        stats: { trait: "Known as the 'King of Beasts'.", date: "2024", year: 2024 }
-    },
-    {
-        id: "backup_2",
-        name: "Emperor Penguin",
-        correctName: "Emperor Penguin",
-        sciName: "Aptenodytes forsteri",
-        family: "Spheniscidae",
-        image: "https://upload.wikimedia.org/wikipedia/commons/0/07/Emperor_Penguin_Manchot_empereur.jpg",
-        lat: -77.0,
-        lng: 166.0, // Antarctica
-        location: "Ross Sea, Antarctica",
-        recordedBy: "Offline_Backup",
-        link: "https://en.wikipedia.org/wiki/Emperor_penguin",
-        stats: { trait: "The tallest and heaviest of all living penguin species.", date: "2024", year: 2024 }
-    },
-    {
-        id: "backup_3",
-        name: "Monarch Butterfly",
-        correctName: "Monarch Butterfly",
-        sciName: "Danaus plexippus",
-        family: "Nymphalidae",
-        image: "https://upload.wikimedia.org/wikipedia/commons/6/63/Monarch_In_May.jpg",
-        lat: 19.6,
-        lng: -100.2, // Mexico
-        location: "Michoacán, Mexico",
-        recordedBy: "Offline_Backup",
-        link: "https://en.wikipedia.org/wiki/Monarch_butterfly",
-        stats: { trait: "Known for its long-distance annual migration.", date: "2024", year: 2024 }
-    },
-    {
-        id: "backup_4",
-        name: "Koala",
-        correctName: "Koala",
-        sciName: "Phascolarctos cinereus",
-        family: "Phascolarctidae",
-        image: "https://upload.wikimedia.org/wikipedia/commons/4/49/Koala_climbing_tree.jpg",
-        lat: -27.4,
-        lng: 153.0, // Brisbane
-        location: "Queensland, Australia",
-        recordedBy: "Offline_Backup",
-        link: "https://en.wikipedia.org/wiki/Koala",
-        stats: { trait: "Sleeps up to 20 hours a day.", date: "2024", year: 2024 }
-    }
-];
-
-// --- HELPER: Generate 5 Final Options ---
-    const generateOptions = (currentAnimal) => {
-        if (!currentAnimal) return [];
-        // Get 4 random wrong animals
-        const others = ALL_ANIMALS_FLAT.filter(a => a.name !== currentAnimal.correctName);
-        const shuffledOthers = others.sort(() => 0.5 - Math.random()).slice(0, 4);
-        // Combine with correct animal and shuffle
-        const options = [...shuffledOthers, { name: currentAnimal.correctName }];
-        return options.sort(() => 0.5 - Math.random());
-    };
 
         // --- COMPONENT: MapClue (With Cinematic FlyTo Animation) ---
-const MapClue = ({ lat, lng, zoom }) => {
-    const mapRef = useRef(null);
-    const mapInstanceRef = useRef(null);
-    const markerRef = useRef(null);
-    const resizeObserverRef = useRef(null);
+        const MapClue = ({ lat, lng, zoom }) => {
+            const mapRef = useRef(null);
+            const mapInstanceRef = useRef(null);
+            const markerRef = useRef(null);
+            const resizeObserverRef = useRef(null);
 
             // 1. Initialize Map
-    useEffect(() => {
-        if (mapRef.current && !mapInstanceRef.current) {
-            mapInstanceRef.current = L.map(mapRef.current, {
-                zoomControl: false, attributionControl: false, dragging: false,
-                scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, 
-            }).setView([lat, lng], zoom);
+            useEffect(() => {
+                if (mapRef.current && !mapInstanceRef.current) {
+                    mapInstanceRef.current = L.map(mapRef.current, {
+                        zoomControl: false, attributionControl: false, dragging: false,
+                        scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, 
+                    }).setView([lat, lng], zoom);
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; OpenStreetMap &copy; CARTO',
-                maxZoom: 19
-            }).addTo(mapInstanceRef.current);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+                        attribution: '&copy; OpenStreetMap &copy; CARTO',
+                        maxZoom: 19
+                    }).addTo(mapInstanceRef.current);
 
-            const icon = L.divIcon({
-                className: 'custom-pin', html: `<div></div>`,
-                iconSize: [20, 20], iconAnchor: [10, 10]
-            });
+                    const icon = L.divIcon({
+                        className: 'custom-pin', html: `<div></div>`,
+                        iconSize: [20, 20], iconAnchor: [10, 10]
+                    });
 
-            markerRef.current = L.marker([lat, lng], { icon }).addTo(mapInstanceRef.current);
+                    markerRef.current = L.marker([lat, lng], { icon }).addTo(mapInstanceRef.current);
 
-            resizeObserverRef.current = new ResizeObserver(() => {
-                if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
-            });
-            resizeObserverRef.current.observe(mapRef.current);
-        }
+                    resizeObserverRef.current = new ResizeObserver(() => {
+                        if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize();
+                    });
+                    resizeObserverRef.current.observe(mapRef.current);
+                }
 
                 // Cleanup function
-        return () => {
-            if (resizeObserverRef.current) resizeObserverRef.current.disconnect();
-            if (mapInstanceRef.current) {
-                mapInstanceRef.current.remove();
-                mapInstanceRef.current = null;
-            }
-        };
-    }, []);
+                return () => {
+                    if (resizeObserverRef.current) resizeObserverRef.current.disconnect();
+                    if (mapInstanceRef.current) {
+                        mapInstanceRef.current.remove();
+                        mapInstanceRef.current = null;
+                    }
+                };
+            }, []);
 
             // 2. React to props updates (Cinematic Zoom)
-    useEffect(() => {
-        if (mapInstanceRef.current && markerRef.current) {
+            useEffect(() => {
+                if (mapInstanceRef.current && markerRef.current) {
                     // Use flyTo for the smooth zoom effect
-            mapInstanceRef.current.flyTo([lat, lng], zoom, {
-                animate: true,
+                    mapInstanceRef.current.flyTo([lat, lng], zoom, {
+                        animate: true,
                         duration: 2.0 // 2 seconds for a nice slow cinematic feel
                     });
-            markerRef.current.setLatLng([lat, lng]);
-        }
-    }, [lat, lng, zoom]);
+                    markerRef.current.setLatLng([lat, lng]);
+                }
+            }, [lat, lng, zoom]);
 
-    return <div ref={mapRef} className="w-full h-full"></div>;
-};
+            return <div ref={mapRef} className="w-full h-full"></div>;
+        };
 
 
-// Helper to get date keys (e.g., "2023-10-25" and "2023-W43")
-const getDateKeys = () => {
-    const now = new Date();
-const dayKey = now.toISOString().split('T')[0]; // "2023-10-25"
+        // Helper to get date keys (e.g., "2023-10-25" and "2023-W43")
+        const getDateKeys = () => {
+            const now = new Date();
+        const dayKey = now.toISOString().split('T')[0]; // "2023-10-25"
 
-// Calculate Week Key
-const startOfYear = new Date(now.getFullYear(), 0, 1);
-const pastDays = Math.floor((now - startOfYear) / 86400000);
-const weekNum = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);
-const weekKey = `${now.getFullYear()}-W${weekNum}`; // "2023-W43"
+        // Calculate Week Key
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        const pastDays = Math.floor((now - startOfYear) / 86400000);
+        const weekNum = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);
+        const weekKey = `${now.getFullYear()}-W${weekNum}`; // "2023-W43"
 
-return { dayKey, weekKey };
-};
-
-        // --- HELPER: Filter Low Quality Records ---
-const isLowQualityRecord = (record) => {
-    // 1. Check Annotations (The most accurate check)
-    if (record.annotations && record.annotations.length > 0) {
-        for (const note of record.annotations) {
-            // Attribute 22 = "Evidence of Presence"
-            // Value 24 = "Organism" (The actual animal)
-            // If Evidence IS set, but it is NOT 24 (Organism), it's bad (e.g. Scat, Track, Molt, Bone)
-            if (note.attribute_id === 22 && note.value_id !== 24) return true;
-            
-            // Specific "Bad" Values to catch:
-            // 19=Dead, 23=Feather, 25=Scat, 26=Track, 27=Bone, 28=Molt, 29=Gall, 30=Egg
-            const badIds = [19, 23, 25, 26, 27, 28, 29, 30];
-            if (badIds.includes(note.value_id)) return true;
-        }
-    }
-
-    // 2. Check Dynamic Properties (JSON strings often found in iNaturalist data)
-    const dynProps = (record.dynamicProperties || "").toLowerCase().replace(/\s/g, "");
-    if (dynProps.includes('"evidenceofpresence":"track"') || 
-        dynProps.includes('"evidenceofpresence":"scat"') || 
-        dynProps.includes('"vitality":"dead"')) return true;
-
-    // 3. Check Text Fields (Description, Tags, Field Notes)
-        const bannedKeywords = [
-            "track", "print", "footprint", "paw", "scat", "feces", "dropping", "poop", "dung", 
-            "burrow", "nest", "den", "moult", "shed", "dead", "roadkill", "carcass", 
-            "remains", "bone", "skull", "skeleton", "corpse", "specimen", "taxidermy"
-        ];
-
-        const textFields = [
-            record.description, 
-            record.occurrenceRemarks, 
-            record.fieldNotes, 
-            record.media?.[0]?.description, 
-            record.media?.[0]?.title, 
-            (record.tags || []).join(" ") 
-        ].filter(Boolean).join(" ").toLowerCase();
-
-        return bannedKeywords.some(keyword => textFields.includes(keyword));
+        return { dayKey, weekKey };
     };
 
+        // --- HELPER: Filter Low Quality Records ---
+    const isLowQualityRecord = (record) => {
+        // 1. Check Annotations (Fixed JSON Keys!)
+        if (record.annotations && record.annotations.length > 0) {
+            for (const note of record.annotations) {
+            // iNaturalist uses 'controlled_attribute_id', not just 'attribute_id'!
+                const attrId = Number(note.controlled_attribute_id);
+                const valId = Number(note.controlled_value_id);
+
+            // Attribute 17 = "Alive or Dead" -> Value 19 = "Dead"
+                if (attrId === 17 && valId === 19) return true;
+
+            // Attribute 22 = "Evidence of Presence" 
+            // If Evidence IS set, but it is NOT 24 (Organism), it's bad (e.g. Scat, Track, Molt, Bone)
+                if (attrId === 22 && valId !== 24) return true;
+
+            // General "Bad" Values fallback check
+            // 19=Dead, 23=Feather, 25=Scat, 26=Track, 27=Bone, 28=Molt, 29=Gall, 30=Egg, 31=Hair, 32=Leafmine, 35=Construction
+                const badIds = [19, 23, 25, 26, 27, 28, 29, 30, 31, 32, 35];
+                if (badIds.includes(valId)) return true;
+            }
+        }
+
+        // 2. Check Dynamic Properties
+        const dynProps = (record.dynamicProperties || "").toLowerCase().replace(/\s/g, "");
+        if (dynProps.includes('"evidenceofpresence":"track"') || 
+            dynProps.includes('"evidenceofpresence":"scat"') || 
+            dynProps.includes('"vitality":"dead"')) return true;
+
+        // 3. Check Text Fields (Added "construction")
+            const bannedKeywords = [
+                "track", "print", "footprint", "paw", "scat", "feces", "dropping", "poop", "dung", 
+                "burrow", "nest", "den", "moult", "shed", "dead", "roadkill", "carcass", 
+                "remains", "bone", "skull", "skeleton", "corpse", "specimen", "taxidermy",
+                "construction", "web"
+            ];
+
+            const textFields = [
+                record.description, 
+                record.occurrenceRemarks, 
+                record.fieldNotes, 
+                record.media?.[0]?.description, 
+                record.media?.[0]?.title, 
+                (record.tags || []).join(" ") 
+            ].filter(Boolean).join(" ").toLowerCase();
+
+            return bannedKeywords.some(keyword => textFields.includes(keyword));
+        };
+
         // --- COMPONENT: CountdownScreen ---
-    const CountdownScreen = ({ onComplete, stickers, isReady }) => {
-        const [count, setCount] = useState(3);
-        const [emoji, setEmoji] = useState("🦁");
+        // --- COMPONENT: CountdownScreen ---
+        const CountdownScreen = ({ onComplete, stickers, isReady }) => {
+            const [count, setCount] = useState(3);
+            const [emoji, setEmoji] = useState("🦁");
+        const [msgIndex, setMsgIndex] = useState(0); // Track which message to show
+
         const emojis = ["🦁", "🐯", "🐻", "🐨", "🐼", "🐸", "🐙", "🦊", "🦓", "🦄", "🦅", "🐝", "🦀", "🦖"];
 
-            // 1. Play Sound ONCE when the screen loads
+        const loadingMessages = [
+            "Acquiring Target Data...",
+            "Triangulating Coordinates...",
+            "Sourcing High-Res Photos...",
+            "Generating Cryptic Clues...",
+            "Consulting Local Biologists...",
+            "Reversing Global Warming...", 
+            "Calibrating Satellites..."
+        ];
+
+        // 1. Play Sound ONCE when the screen loads
         useEffect(() => {
             sfx.play('countdown');
         }, []);
 
-// 2. Timer Logic (Silent)
+        // 2. Timer Logic (Silent)
         useEffect(() => {
             if (count > 0) {
-        // Removed sfx.play call from here
                 const timer = setTimeout(() => setCount(c => c - 1), 1000);
                 return () => clearTimeout(timer);
             }
         }, [count]);
 
-            // Completion Logic (Wait for Data)
+        // 3. Message Rotation Logic (Only runs when waiting)
+        useEffect(() => {
+            if (count === 0 && !isReady) {
+                const interval = setInterval(() => {
+                    setMsgIndex(prev => (prev + 1) % loadingMessages.length);
+                }, 1800); // Change text every 1.8 seconds
+                return () => clearInterval(interval);
+            }
+        }, [count, isReady]);
+
+        // 4. Completion Logic (Wait for Data)
         useEffect(() => {
             if (count === 0 && isReady) {
                 const timer = setTimeout(onComplete, 500);
@@ -251,6 +206,7 @@ const isLowQualityRecord = (record) => {
             }
         }, [count, isReady, onComplete]);
 
+        // 5. Emoji Shuffle Logic
         useEffect(() => {
             const interval = setInterval(() => {
                 setEmoji(emojis[Math.floor(Math.random() * emojis.length)]);
@@ -268,15 +224,15 @@ const isLowQualityRecord = (record) => {
                 <div className="relative z-10 flex flex-col items-center">
                     <h2 className="text-4xl font-black mb-8 animate-pulse text-emerald-100 drop-shadow-md tracking-wider uppercase">GET READY</h2>
 
-                        {/* Dynamic Counter Text */}
+                    {/* Dynamic Counter Text */}
                     <div className="text-9xl mb-8 font-mono font-bold drop-shadow-2xl text-white">
                         {count > 0 ? count : (isReady ? "GO!" : <span className="text-6xl animate-pulse">📡</span>)}
                     </div>
 
-                        {/* Status Message if Waiting */}
+                    {/* Status Message (Rotates if Waiting) */}
                     {count === 0 && !isReady && (
-                        <div className="text-emerald-200 font-mono font-bold uppercase tracking-widest animate-pulse mb-4">
-                            Acquiring Target Data...
+                        <div className="text-emerald-200 font-mono font-bold uppercase tracking-widest animate-pulse mb-4 text-center px-4 h-8 transition-all duration-300">
+                            {loadingMessages[msgIndex]}
                         </div>
                         )}
 
@@ -287,16 +243,16 @@ const isLowQualityRecord = (record) => {
     };
 
         // --- COMPONENT: NewDiscoveryModal ---
-// --- COMPONENT: NewDiscoveryModal ---
+        // --- COMPONENT: NewDiscoveryModal ---
     const NewDiscoveryModal = ({ pendingAnimals, onConfirmOne, onConfirmAll, allAnimalsFlat }) => {
         const [isRevealed, setIsRevealed] = useState(false);
         const currentAnimalName = pendingAnimals[0];
 
-    // Find the full animal object
+        // Find the full animal object
         const animalData = allAnimalsFlat.find(a => a.name === currentAnimalName) || {};
 
-    // LOGIC UPDATE: Read the emoji directly from the animal data
-    // Fallback order: Specific Emoji -> Group Emoji -> Generic Paw
+        // LOGIC UPDATE: Read the emoji directly from the animal data
+        // Fallback order: Specific Emoji -> Group Emoji -> Generic Paw
         const emoji = animalData.emoji || animalData.groupEmoji || "🐾"; 
 
         const handleReveal = () => {
@@ -373,69 +329,226 @@ const isLowQualityRecord = (record) => {
             );
     };
 
+        // 1. Define the Region IDs
+    const REGION_IDS = {
+        "Any": null,
+        "Africa": 97392,
+        "Asia": 97395,
+        "Europe": 97391,
+        "NorthAmerica": 97394,
+        "South America": 97389,
+        "Oceania": 97393,
+    };
+
+        // 2. Define the Dropdown Options
+    const REGION_OPTIONS = [
+        { label: "🐸 All Regions", value: "Any" },
+        { label: "🐌 Africa", value: "Africa" },
+        { label: "🦊 Asia", value: "Asia" },
+        { label: "🐧 Europe", value: "Europe" },
+        { label: "🐻 North America", value: "NorthAmerica" },
+        { label: "🐵 South America", value: "SouthAmerica" },
+        { label: "🐠 Oceania (Australia/NZ)", value: "Oceania" },
+    ];
+
         // --- MAIN COMPONENT: WildGuessGame ---
-const WildGuessGame = () => {
-    // --- STATE HOOKS ---
-    const [view, setView] = useState('menu');
-    const [isMuted, setIsMuted] = useState(false);
-    const [timerEnabled, setTimerEnabled] = useState(false);
-    const [showSettings, setShowSettings] = useState(false);
-    const [animalData, setAnimalData] = useState(null);
-    const [preloadedData, setPreloadedData] = useState(null);
-    const [currentClueIndex, setCurrentClueIndex] = useState(0);
-    const [timeLeft, setTimeLeft] = useState(15);
-    const [roundScore, setRoundScore] = useState(5);
-    const [guessLocked, setGuessLocked] = useState(false);
-    const [wrongGuesses, setWrongGuesses] = useState([]);
-    const [gameResult, setGameResult] = useState(null);
-    const [selectedGroup, setSelectedGroup] = useState(null); 
-    const [gameId, setGameId] = useState(0);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [user, setUser] = useState(null);
-    const [username, setUsername] = useState("");
-    const auth = getAuth(); 
-    const provider = new GoogleAuthProvider();
-    const [isProfileSetup, setIsProfileSetup] = useState(false);
-    const [authLoading, setAuthLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    const [showLeaderboard, setShowLeaderboard] = useState(false);
-    const [leaderboardData, setLeaderboardData] = useState([]);
-    const [leaderboardTab, setLeaderboardTab] = useState('daily');
-    const [globalBlacklist, setGlobalBlacklist] = useState([]);
-    const [isImageReady, setIsImageReady] = useState(false);
-    const [pendingJournalEntries, setPendingJournalEntries] = useState([]);
-    const interactionLockRef = useRef(false);
-    const isGoogleLoginInProgress = useRef(false);
-    const [isOfflineMode, setIsOfflineMode] = useState(false);
-    const [showShareMenu, setShowShareMenu] = useState(false);
+    const WildGuessGame = () => {
+        // --- STATE HOOKS ---
+        const [view, setView] = useState('menu');
+        const [isMuted, setIsMuted] = useState(false);
+        const [timerEnabled, setTimerEnabled] = useState(false);
+        const [showSettings, setShowSettings] = useState(false);
+        const [animalData, setAnimalData] = useState(null);
+        const [preloadedData, setPreloadedData] = useState(null);
+        const [currentClueIndex, setCurrentClueIndex] = useState(0);
+        const [activeViewIndex, setActiveViewIndex] = useState(0);
+        const [timeLeft, setTimeLeft] = useState(15);
+        const [roundScore, setRoundScore] = useState(5);
+        const [guessLocked, setGuessLocked] = useState(false);
+        const [wrongGuesses, setWrongGuesses] = useState([]);
+        const [gameResult, setGameResult] = useState(null);
+        const [selectedGroup, setSelectedGroup] = useState(null); 
+        const [gameId, setGameId] = useState(0);
+        const [searchTerm, setSearchTerm] = useState("");
+        const [user, setUser] = useState(null);
+        const [username, setUsername] = useState("");
+        const auth = getAuth(); 
+        const provider = new GoogleAuthProvider();
+        const [isProfileSetup, setIsProfileSetup] = useState(false);
+        const [authLoading, setAuthLoading] = useState(true);
+        const [isSaving, setIsSaving] = useState(false);
+        const [showLeaderboard, setShowLeaderboard] = useState(false);
+        const [leaderboardData, setLeaderboardData] = useState([]);
+        const [leaderboardTab, setLeaderboardTab] = useState('weekly');
+        const [leaderboardTier, setLeaderboardTier] = useState('explorer');
+        const [globalBlacklist, setGlobalBlacklist] = useState([]);
+        const [isImageReady, setIsImageReady] = useState(false);
+        const [pendingJournalEntries, setPendingJournalEntries] = useState([]);
+        const interactionLockRef = useRef(false);
+        const isGoogleLoginInProgress = useRef(false);
+        const activePreloadRef = useRef(0);
+        const [isOfflineMode, setIsOfflineMode] = useState(false);
+        const [showShareMenu, setShowShareMenu] = useState(false);
+        const [showUpdateModal, setShowUpdateModal] = useState(false);
+        const [targetRegion, setTargetRegion] = useState("Any"); 
+        const [isLoading, setIsLoading] = useState(false);
+        const [loadingProgress, setLoadingProgress] = useState(0);
+        const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+        const [isTutorialMode, setIsTutorialMode] = useState(false);
+        const [tutorialStep, setTutorialStep] = useState(0); 
+        const [showToast, setShowToast] = useState(false);
+        const { animals, loading: dataLoading, loadedRegion } = useAnimalData("Any");
+        const [showTimerPromo, setShowTimerPromo] = useState(false);
+        const [showWikiModal, setShowWikiModal] = useState(false);
+        // ⬇️ NEW: Track the currently selected journal region
+        
+        const ALL_ANIMALS_FLAT = animals || []; 
 
-    // --- LOADING & TUTORIAL STATE ---
-    const [isLoading, setIsLoading] = useState(false);
-    const [loadingProgress, setLoadingProgress] = useState(0);
-    const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
-    const [isTutorialMode, setIsTutorialMode] = useState(false);
-    const [tutorialStep, setTutorialStep] = useState(0); 
-    const [showToast, setShowToast] = useState(false);
+        // --- THE PRELOAD ASSASSIN ---
+        // This wipes out stale data the microsecond the continent dropdown changes
+        useEffect(() => {
+        setPreloadedData(null); // 1. Shred the currently held animal
+        activePreloadRef.current += 1; // 2. Instantly invalidate any background fetches still flying through the internet
+    }, [targetRegion]);
 
-    // --- UNLOCK ON CLUE CHANGE ---
+
+        // --- NEW: REBUILD GROUPS DYNAMICALLY ---
+        const ANIMAL_GROUPS = useMemo(() => {
+            if (!ALL_ANIMALS_FLAT.length) return [];
+
+            const groups = {};
+
+            ALL_ANIMALS_FLAT.forEach(animal => {
+            // Get the raw category string from the sheet (e.g., "🦎 Reptiles")
+                const fullCatString = animal.category || "📂 Uncategorized";
+
+                if (!groups[fullCatString]) {
+                // Logic: Split "🦎 Reptiles" into Emoji and Name
+                    const firstSpaceIndex = fullCatString.indexOf(' ');
+                    let groupEmoji = "🐾";
+                    let groupName = fullCatString;
+
+                // If we find a space, assume the first part is the emoji
+                    if (firstSpaceIndex !== -1) {
+                    groupEmoji = fullCatString.substring(0, firstSpaceIndex); // "🦎"
+                    groupName = fullCatString.substring(firstSpaceIndex + 1); // "Reptiles"
+                }
+
+                groups[fullCatString] = {
+                    id: fullCatString, 
+                    name: groupName,   // Just the text
+                    emoji: groupEmoji, // Just the emoji
+                    animals: []
+                };
+            }
+            groups[fullCatString].animals.push(animal);
+        });
+
+        // Convert to array and sort alphabetically by name
+            const finalGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+
+        /*        console.log("👀 DEBUG GROUPS:", finalGroups); 
+        console.log("🐾 RAW ANIMAL DATA:", ALL_ANIMALS_FLAT);*/
+
+            return finalGroups;
+        }, [ALL_ANIMALS_FLAT]);
+
+
+        // --- CHECK FOR MASSIVE UPDATE MODAL ---
     useEffect(() => {
-        interactionLockRef.current = false;
-    }, [currentClueIndex]);
+        // ⬇️ NEW: Only run this check IF the user is fully signed in and ready to play!
+        if (isProfileSetup) {
+            // Change 'wildGuess_update_v2' if you want to force it to show again for testing!
+            const hasSeenUpdate = localStorage.getItem('wildGuess_update_v2_seen'); 
+            if (!hasSeenUpdate) {
+                // Add a tiny 500ms delay so it pops up smoothly AFTER the login screen fades away
+                const timer = setTimeout(() => setShowUpdateModal(true), 500);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [isProfileSetup]); // ⬅️ NEW: Tells React to re-run this check the exact moment they finish logging in
 
-    // --- FIELD JOURNAL STATE ---
-    const [showJournal, setShowJournal] = useState(false);
-    const [unlockedAnimals, setUnlockedAnimals] = useState(new Set());
+        const handleCloseUpdate = () => {
+            sfx.play('click');
+            localStorage.setItem('wildGuess_update_v2_seen', 'true');
+            setShowUpdateModal(false);
+        };
 
-    const fetchJournal = async () => {
+
+        const generateOptions = (currentAnimal) => {
+            if (!currentAnimal) return [];
+
+        // 1. Get 4 random WRONG answers
+            const others = ALL_ANIMALS_FLAT.filter(a => a.name !== currentAnimal.correctName);
+            const shuffledOthers = others.sort(() => 0.5 - Math.random()).slice(0, 4);
+
+        // 2. ⬇️ FIXED: Get the REAL, full animal object for the CORRECT answer
+            const correctAnimalFull = ALL_ANIMALS_FLAT.find(a => a.name === currentAnimal.correctName);
+
+        // 3. Combine them and shuffle
+            const options = [...shuffledOthers, correctAnimalFull];
+            return options.sort(() => 0.5 - Math.random());
+        };
+
+        // --- CHECK FOR TIMER PROMO (10+ Games) ---
+        useEffect(() => {
+        // Only check when they are sitting on the main menu
+            if (view === 'menu') {
+                const hasSeenPromo = localStorage.getItem('wildGuess_timer_promo_seen');
+
+                if (!hasSeenPromo && !timerEnabled) {
+                // Count how many unique animals they've played
+                    const playedHistory = JSON.parse(localStorage.getItem('wildGuess_played') || '[]');
+
+                    if (playedHistory.length >= 10) {
+                        setShowTimerPromo(true);
+                    }
+                }
+            }
+        }, [view, timerEnabled]);
+
+        const handleAcceptTimer = () => {
+            sfx.play('click');
+            setTimerEnabled(true);
+            localStorage.setItem('wildGuess_timer_promo_seen', 'true');
+            setShowTimerPromo(false);
+        };
+
+        const handleDismissTimer = () => {
+            sfx.play('click');
+            localStorage.setItem('wildGuess_timer_promo_seen', 'true');
+            setShowTimerPromo(false);
+        };
+
+
+        // --- UNLOCK ON CLUE CHANGE ---
+        useEffect(() => {
+            interactionLockRef.current = false;
+        }, [currentClueIndex]);
+
+        // --- FIELD JOURNAL STATE ---
+        const [showJournal, setShowJournal] = useState(false);
+        const [unlockedAnimals, setUnlockedAnimals] = useState(new Set());
+        const [journalRegionFilter, setJournalRegionFilter] = useState("All");
+
+
+        const fetchJournal = async () => {
         if (!user) return;
+
+        // ⬇️ THE FIX: Sync the Journal Dropdown to the Game's Region 
+        // (If the game is on "Any", we tell the journal to show "All")
+        setJournalRegionFilter(targetRegion === "Any" ? "All" : targetRegion);
+
         const queue = JSON.parse(localStorage.getItem('journal_queue') || '[]');
         if (queue.length > 0) {
             setPendingJournalEntries(queue);
             setShowJournal(true);
             return;
         }
+        
         sfx.play('unlock', 0.3);
         setShowJournal(true);
+        
         try {
             const gamesRef = collection(db, "games");
             const q = query(gamesRef, where("userId", "==", user.uid), where("result", "==", "win"));
@@ -451,68 +564,68 @@ const WildGuessGame = () => {
         }
     };
 
-    const handleConfirmJournalEntry = (animalName) => {
-        const newQueue = pendingJournalEntries.filter(name => name !== animalName);
-        setPendingJournalEntries(newQueue);
-        localStorage.setItem('journal_queue', JSON.stringify(newQueue));
-        if (newQueue.length === 0) fetchJournal(); 
-    };
-
-    const handleConfirmAllJournal = () => {
-        setPendingJournalEntries([]);
-        localStorage.setItem('journal_queue', '[]');
-        fetchJournal();
-    };
-
-    // --- LOAD GLOBAL BLACKLIST ---
-    useEffect(() => {
-        const fetchBlacklist = async () => {
-            try {
-                const blacklistRef = doc(db, "system", "blacklist");
-                const docSnap = await getDoc(blacklistRef);
-                if (docSnap.exists()) setGlobalBlacklist(docSnap.data().ids || []);
-            } catch (error) {
-                console.error("Failed to load blacklist:", error);
-            }
+        const handleConfirmJournalEntry = (animalName) => {
+            const newQueue = pendingJournalEntries.filter(name => name !== animalName);
+            setPendingJournalEntries(newQueue);
+            localStorage.setItem('journal_queue', JSON.stringify(newQueue));
+            if (newQueue.length === 0) fetchJournal(); 
         };
-        fetchBlacklist();
-    }, []);
 
-    // --- SILENTLY LOAD JOURNAL ON LOGIN ---
-    useEffect(() => {
-        if (user) {
-            const loadUnlockedSilent = async () => {
+        const handleConfirmAllJournal = () => {
+            setPendingJournalEntries([]);
+            localStorage.setItem('journal_queue', '[]');
+            fetchJournal();
+        };
+
+        // --- LOAD GLOBAL BLACKLIST ---
+        useEffect(() => {
+            const fetchBlacklist = async () => {
                 try {
-                    const q = query(collection(db, "games"), where("userId", "==", user.uid), where("result", "==", "win"));
-                    const snapshot = await getDocs(q);
-                    const newSet = new Set();
-                    snapshot.forEach(doc => {
-                        const data = doc.data();
-                        if (data.animalName) newSet.add(data.animalName);
-                    });
-                    setUnlockedAnimals(newSet);
-                } catch (err) {
-                    console.error("Background journal load failed:", err);
+                    const blacklistRef = doc(db, "system", "blacklist");
+                    const docSnap = await getDoc(blacklistRef);
+                    if (docSnap.exists()) setGlobalBlacklist(docSnap.data().ids || []);
+                } catch (error) {
+                    console.error("Failed to load blacklist:", error);
                 }
             };
-            loadUnlockedSilent();
-        }
-    }, [user]);
+            fetchBlacklist();
+        }, []);
 
-    // --- AUTHENTICATION MONITOR ---
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            console.log("🔒 [Auth Listener] State Changed:", currentUser ? `Logged In (${currentUser.isAnonymous ? 'Anon' : 'Verified'})` : "Logged Out");
-            console.log("🚦 [Auth Listener] Google Flag is:", isGoogleLoginInProgress.current);
+        // --- SILENTLY LOAD JOURNAL ON LOGIN ---
+        useEffect(() => {
+            if (user) {
+                const loadUnlockedSilent = async () => {
+                    try {
+                        const q = query(collection(db, "games"), where("userId", "==", user.uid), where("result", "==", "win"));
+                        const snapshot = await getDocs(q);
+                        const newSet = new Set();
+                        snapshot.forEach(doc => {
+                            const data = doc.data();
+                            if (data.animalName) newSet.add(data.animalName);
+                        });
+                        setUnlockedAnimals(newSet);
+                    } catch (err) {
+                        console.error("Background journal load failed:", err);
+                    }
+                };
+                loadUnlockedSilent();
+            }
+        }, [user]);
 
-            if (currentUser) {
-                setUser(currentUser);
+        // --- AUTHENTICATION MONITOR ---
+        useEffect(() => {
+            const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+                console.log("🔒 [Auth Listener] State Changed:", currentUser ? `Logged In (${currentUser.isAnonymous ? 'Anon' : 'Verified'})` : "Logged Out");
+                console.log("🚦 [Auth Listener] Google Flag is:", isGoogleLoginInProgress.current);
+
+                if (currentUser) {
+                    setUser(currentUser);
                 // Only reset flag if it's NOT anonymous (meaning a real login happened)
-                if (!currentUser.isAnonymous) {
+                    if (!currentUser.isAnonymous) {
                      isGoogleLoginInProgress.current = false; 
-                }
+                 }
 
-                try {
+                 try {
                     const userRef = doc(db, "users", currentUser.uid);
                     const userSnap = await getDoc(userRef);
 
@@ -533,293 +646,398 @@ const WildGuessGame = () => {
                 if (!isGoogleLoginInProgress.current) {
                     console.log("🕵️ [Auth Listener] No user & No Google in progress. Creating Guest...");
                     signInAnonymously(auth)
-                        .catch((error) => console.error("Auth Error:", error))
-                        .finally(() => setAuthLoading(false));
+                    .catch((error) => console.error("Auth Error:", error))
+                    .finally(() => setAuthLoading(false));
                 } else {
                     console.log("⏳ [Auth Listener] Google Login in progress... Pausing Guest creation.");
                 }
             }
         });
 
-        return () => unsubscribe();
-    }, []);
+            return () => unsubscribe();
+        }, []);
 
-    const handleMuteToggle = () => {
-        const newState = sfx.toggleMute();
-        setIsMuted(newState);
-    };
+        const handleMuteToggle = () => {
+            const newState = sfx.toggleMute();
+            setIsMuted(newState);
+        };
 
-    const timerRef = useRef(null);
-    const LOADING_MESSAGES = ["Connecting to Satellite 🛰️", "Triangulating Signal 📡", "Tracking Wildlife 🐾", "Filtering Bad Data 🧹", "Verifying Coordinates 📍", "Consulting Biologists 👨‍🔬", "Loading Map Tiles 🗺️", "Enhancing Image 📸"];
+        const timerRef = useRef(null);
+        const LOADING_MESSAGES = ["Connecting to Satellite 🛰️", "Triangulating Signal 📡", "Tracking Wildlife 🐾", "Filtering Bad Data 🧹", "Verifying Coordinates 📍", "Consulting Biologists 👨‍🔬", "Loading Map Tiles 🗺️", "Enhancing Image 📸"];
 
-    // --- UPDATED TUTORIAL DATA (Optimized) ---
-    const TUTORIAL_DATA = [
-        { 
-            // Step 0: Hint (Now Clue 1)
-            title: "CLUE 1: THE HINT", 
-            text: "🔎 We start with a **cryptic hint**. It's tough, but gives you a general idea of the animal's behavior.", 
-            // Points to bottom-center (where hint card is)
-            positionClasses: "bottom-24 left-1/2 transform -translate-x-1/2 md:bottom-50 md:left-1/2 md:translate-x-10", 
-            // FIX: Changed border-1 to border-l
-            arrowClasses: "-bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent", 
-            buttonText: "Reveal Next Clue" 
-        },
-        { 
-            // Step 1: Taxonomy (Now Clue 2)
-            title: "CLUE 2: TAXONOMY", 
-            text: "🧬 Next is the **Scientific Family**. This narrows it down significantly.", 
-            // Points to bottom-center (where taxonomy card is)
-            positionClasses: "bottom-24 left-1/2 transform -translate-x-1/2 md:bottom-20 md:left-1/2 md:translate-x-10",
-            arrowClasses: "-bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent", 
-            buttonText: "Reveal Next Clue" 
-        },
-        { 
-            // Step 2: Location (Now Clue 3)
-            title: "CLUE 3: LOCATION", 
-            text: "📍 Now we see the **Location**. The map zooms in to show you exactly where.", 
-            // Points to Top-Left (where Location bubble is)
-            positionClasses: "top-24 left-4 md:top-24 md:left-1/2", 
-            arrowClasses: "-top-[10px] left-4 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent", 
-            buttonText: "Reveal Next Clue" 
-        },
-        { 
-            // Step 3: Photo (Now Clue 4)
-            title: "CLUE 4: THE PHOTO", 
-            text: "📸 The final clue is a **blurred photo**. Can you see it clearly now?", 
-            // Points to Center (where photo is)
-            positionClasses: "top-24 left-4 md:top-40 md:left-1/2",
-            arrowClasses: "hidden", 
-            buttonText: "I'm Ready to Guess" 
-        },
-        { 
-            // Step 4: Category Select
-            title: "MAKE A GUESS", 
-            text: "Start by selecting a **Category** or searching.", 
-            // Points to Right Sidebar on Desktop
-            positionClasses: "top-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0", 
-            arrowClasses: "hidden", 
-            hideButton: true 
-        },
-        { 
-            // Step 5: Animal Select
-            title: "PICK THE ANIMAL", 
-            text: "Choose the **animal** you think it is.", 
-            positionClasses: "top-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0", 
-            arrowClasses: "hidden", 
-            hideButton: true 
-        },
-        { 
-            // Step 6: Wrong Guess
-            title: "WRONG! BUT WAIT...", 
-            text: "Still didn't get it? We've narrowed it down to **5 choices** to help you make a final guess.", 
-            // FIX: Moved to top-24 so it doesn't block the answers
-            positionClasses: "top-60 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0", 
-            arrowClasses: "hidden", 
-            hideButton: true 
-        },
-        { 
-            // Step 7: Win
-            title: "SUCCESS!", 
-            text: "Well done! Click **Play Again**.", 
-            positionClasses: "top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2", 
-            arrowClasses: "hidden", 
-            buttonText: "Play Again" 
-        },
-        { 
-            // Step 8: Loss
-            title: "GAME OVER", 
-            text: "Oh well! Click **Play Again**.", 
-            positionClasses: "top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2", 
-            arrowClasses: "hidden", 
-            buttonText: "Play Again" 
-        }
-    ];
+        // --- UPDATED TUTORIAL DATA ---
+        const TUTORIAL_DATA = [
+            { 
+                title: "CLUE 1: SCIENTIFIC NAME", 
+                text: "🌎 You start with a global map view and the **Scientific Name**.", 
+                positionClasses: "top-24 left-1/2 transform -translate-x-1/2 md:top-32", 
+                arrowClasses: "-top-[10px] left-1/2 -translate-x-1/2 border-b-[10px] border-b-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent", 
+                buttonText: "Reveal Next Clue" 
+            },
+            { 
+                title: "CLUE 2: LOCATION & PHOTO", 
+                text: "📍 Next, we zoom into the **Location** and reveal a **blurred photo**.", 
+                positionClasses: "top-24 left-4 md:top-40 md:left-1/2 md:-translate-x-1/2",
+                arrowClasses: "hidden", 
+                buttonText: "Reveal Next Clue" 
+            },
+            { 
+                title: "CLUE 3: FIRST HINT", 
+                text: "🔎 Now you get your first **behavioral hint**.", 
+                positionClasses: "bottom-32 left-1/2 transform -translate-x-1/2", 
+                arrowClasses: "-bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent", 
+                buttonText: "Reveal Next Clue" 
+            },
+            { 
+                title: "CLUE 4: FINAL HINT", 
+                text: "🧬 Still stuck? Here is your **final hint** to narrow it down.", 
+                positionClasses: "bottom-24 left-1/2 transform -translate-x-1/2",
+                arrowClasses: "-bottom-[10px] left-1/2 -translate-x-1/2 border-t-[10px] border-t-white border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent", 
+                buttonText: "I'm Ready to Guess" 
+            },
+        // (Steps 4, 5, 6, 7, and 8 remain exactly the same as you have them)
+            { title: "MAKE A GUESS", text: "Start by selecting a **Category** or searching.", positionClasses: "top-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0", arrowClasses: "hidden", hideButton: true },
+            { title: "PICK THE ANIMAL", text: "Choose the **animal** you think it is.", positionClasses: "top-24 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0", arrowClasses: "hidden", hideButton: true },
+            { title: "WRONG! BUT WAIT...", text: "Still didn't get it? We've narrowed it down to **5 choices** to help you make a final guess.", positionClasses: "top-60 left-1/2 transform -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 md:right-[400px] md:left-auto md:translate-x-0", arrowClasses: "hidden", hideButton: true },
+            { title: "SUCCESS!", text: "Well done! Click **Play Again**.", positionClasses: "top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2", arrowClasses: "hidden", buttonText: "Play Again" },
+            { title: "GAME OVER", text: "Oh well! Click **Play Again**.", positionClasses: "top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2", arrowClasses: "hidden", buttonText: "Play Again" }
+        ];
 
-    const menuStickers = useMemo(() => {
-        const emojis = ["🦁", "🐸", "🦜", "🦋", "🦇", "🦒", "🐺", "🐞", "🐢", "🐍", "🐘", "🦘", "🐙", "🐻", "🐊", "🐅", "🦓", "🦏", "🦩", "🦉", "🐋", "🐝", "🐫", "🦈", "🦍", "🐎", "🐀", "🐖", "🐈", "🐕"];
-        const cols = 6; const rows = 5; const cellW = 100 / cols; const cellH = 100 / rows;
-        return emojis.slice(0, cols * rows).map((emoji, i) => {
-            const col = i % cols; const row = Math.floor(i / cols);
-            return {
-                id: i, emoji,
-                left: (col * cellW) + Math.random() * (cellW * 0.7),
-                top: (row * cellH) + Math.random() * (cellH * 0.7),
-                rotation: Math.floor(Math.random() * 60) - 30,
-                size: 3 + Math.random() * 2,
-                opacity: 0.1 + Math.random() * 0.1 
-            };
-        });
-    }, []);
-
-    useEffect(() => {
-        let interval;
-        if (isLoading) {
-            setLoadingProgress(0); setLoadingMsgIndex(0);
-            interval = setInterval(() => {
-                setLoadingProgress(prev => Math.min(prev + 5, 95)); 
-                setLoadingMsgIndex(prev => (prev + 1) % LOADING_MESSAGES.length);
-            }, 400); 
-        }
-        return () => clearInterval(interval);
-    }, [isLoading]);
-
-    useEffect(() => { preloadNextGame(); }, []);
-
-    useEffect(() => {
-        if (view === 'menu') fetchLeaderboard(leaderboardTab);
-    }, [view, leaderboardTab]);
-
-    const fetchLeaderboard = async (tab = leaderboardTab) => {
-        try {
-            let q;
-            const { dayKey, weekKey } = getDateKeys();
-            if (tab === 'daily') {
-                const dailyCollection = collection(db, "leaderboards", "daily", dayKey);
-                q = query(dailyCollection, orderBy("score", "desc"), limit(10));
-            } else if (tab === 'weekly') {
-                const weeklyCollection = collection(db, "leaderboards", "weekly", weekKey);
-                q = query(weeklyCollection, orderBy("score", "desc"), limit(10));
-            } else {
-                const usersRef = collection(db, "users");
-                q = query(usersRef, orderBy("totalScore", "desc"), limit(10));
+        const nextTutorialStep = () => {
+            sfx.play('click', 0.2);
+            if (tutorialStep >= 7) {
+                setIsTutorialMode(false);
+                localStorage.setItem('wildGuess_tutorial_complete', 'true');
+                setShowToast(true);
+                setTimeout(() => setShowToast(false), 8000);
+                startGame(); 
+                return;
             }
+
+            if (tutorialStep < TUTORIAL_DATA.length - 1) {
+                const nextStep = tutorialStep + 1;
+                setTutorialStep(nextStep);
+
+            // LOGIC UPDATE TO MATCH NEW CLUE ORDER
+                if (nextStep === 1) { setCurrentClueIndex(1); setActiveViewIndex(1); setRoundScore(4); } 
+                if (nextStep === 2) { setCurrentClueIndex(2); setActiveViewIndex(2); setRoundScore(3); } 
+                if (nextStep === 3) { setCurrentClueIndex(3); setActiveViewIndex(3); setRoundScore(2); } 
+                if (nextStep === 6) { setCurrentClueIndex(4); setActiveViewIndex(4); setRoundScore(1); }
+            }
+        };
+
+        const menuStickers = useMemo(() => {
+            const emojis = ["🦁", "🐸", "🦜", "🦋", "🦇", "🦒", "🐺", "🐞", "🐢", "🐍", "🐘", "🦘", "🐙", "🐻", "🐊", "🐅", "🦓", "🦏", "🦩", "🦉", "🐋", "🐝", "🐫", "🦈", "🦍", "🐎", "🐀", "🐖", "🐈", "🐕"];
+            const cols = 6; const rows = 5; const cellW = 100 / cols; const cellH = 100 / rows;
+            return emojis.slice(0, cols * rows).map((emoji, i) => {
+                const col = i % cols; const row = Math.floor(i / cols);
+                return {
+                    id: i, emoji,
+                    left: (col * cellW) + Math.random() * (cellW * 0.7),
+                    top: (row * cellH) + Math.random() * (cellH * 0.7),
+                    rotation: Math.floor(Math.random() * 60) - 30,
+                    size: 3 + Math.random() * 2,
+                    opacity: 0.1 + Math.random() * 0.1 
+                };
+            });
+        }, []);
+
+        useEffect(() => {
+            let interval;
+            if (isLoading) {
+                setLoadingProgress(0); setLoadingMsgIndex(0);
+                interval = setInterval(() => {
+                    setLoadingProgress(prev => Math.min(prev + 5, 95)); 
+                    setLoadingMsgIndex(prev => (prev + 1) % LOADING_MESSAGES.length);
+                }, 400); 
+            }
+            return () => clearInterval(interval);
+        }, [isLoading]);
+
+
+        useEffect(() => {
+        // ⬇️ UPDATE: Now fetches when on the menu OR the summary screen!
+            if (view === 'menu' || view === 'summary') fetchLeaderboard(leaderboardTab, leaderboardTier);
+        }, [view, leaderboardTab, leaderboardTier]);
+
+        const fetchLeaderboard = async (tab = leaderboardTab, tier = leaderboardTier) => {
+        try {
+            // --- 1. ROLLING TIME WINDOW LOGIC ---
+            let startDate = null;
+            const now = new Date();
+
+            if (tab === 'daily') {
+                startDate = new Date(now.getTime() - (24 * 60 * 60 * 1000)); 
+            } else if (tab === 'weekly') {
+                startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+            } else if (tab === 'monthly') {
+                startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+            }
+
+            // --- 2. QUERY THE "USERS" COLLECTION ---
+            const usersRef = collection(db, "users");
+            
+            let q;
+            if (startDate) {
+                // ⬇️ Looks for anyone who has played recently!
+                q = query(usersRef, where("lastPlayed", ">=", startDate));
+            } else {
+                q = query(usersRef);
+            }
+
             const querySnapshot = await getDocs(q);
-            const leaders = [];
+            let leaders = [];
+
+            // --- 3. FORMAT THE LEADERBOARD ---
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                leaders.push({ 
-                    id: doc.id, 
-                    username: data.username,
-                    totalScore: data.totalScore || data.score || 0,
-                    gamesPlayed: data.gamesPlayed || 0,
-                    discoveries: data.discoveries || 0
-                });
+                const totalScore = data.totalScore || 0;
+                const gamesPlayed = data.gamesPlayed || 0;
+
+                if (gamesPlayed > 0) {
+                    const averageScore = totalScore / gamesPlayed;
+                    const isHobbyist = gamesPlayed <= 10;
+                    const isExplorer = gamesPlayed >= 11;
+
+                    // Filter by selected tier
+                    if ((tier === 'hobbyist' && isHobbyist) || (tier === 'explorer' && isExplorer)) {
+                        leaders.push({ 
+                            id: doc.id, 
+                            username: data.username || "Anonymous Explorer",
+                            totalScore: totalScore,
+                            gamesPlayed: gamesPlayed,
+                            discoveries: data.discoveries || 0,
+                            averageScore: averageScore 
+                        });
+                    }
+                }
             });
-            setLeaderboardData(leaders);
+
+            // Sort highest average first
+            leaders.sort((a, b) => b.averageScore - a.averageScore);
+
+            // Keep only the Top 10 for the UI
+            setLeaderboardData(leaders.slice(0, 10));
+
         } catch (error) {
             console.error("Error fetching leaderboard:", error);
             setLeaderboardData([]);
         }
     };
 
-    useEffect(() => {
-        if (view === 'game' && !isTutorialMode) startTimeForClue(); 
-        return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    }, [currentClueIndex, view, isTutorialMode]); 
+        useEffect(() => {
+            if (view === 'game' && !isTutorialMode) startTimeForClue(); 
+            return () => { if (timerRef.current) clearInterval(timerRef.current); };
+        }, [currentClueIndex, view, isTutorialMode]); 
 
-    useEffect(() => {
-        if (view === 'game' && !isTutorialMode) {
-            if (timerEnabled) {
-                if (timeLeft <= 1) setTimeLeft(15);
-                startTimeForClue(false, true); 
-            } else {
-                if (timerRef.current) clearInterval(timerRef.current);
-            }
-        }
-        return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    }, [timerEnabled]);
-
-    useEffect(() => {
-        if (view === 'countdown') {
-            setWrongGuesses([]); setRoundScore(5); setGuessLocked(false);
-            setGameResult(null); setSelectedGroup(null); setGameId(prev => prev + 1); 
-            setCurrentClueIndex(-1); setIsImageReady(false); 
-            interactionLockRef.current = false; 
-
-            const tutorialDone = localStorage.getItem('wildGuess_tutorial_complete');
-            setIsTutorialMode(!tutorialDone);
-            if (!tutorialDone) setTutorialStep(0);
-
-            const heavyLiftingTimer = setTimeout(async () => {
-                let targetData = null;
-                if (preloadedData) {
-                    targetData = preloadedData;
-                    setPreloadedData(null);
+        useEffect(() => {
+            if (view === 'game' && !isTutorialMode) {
+                if (timerEnabled) {
+                    if (timeLeft <= 1) setTimeLeft(15);
+                    startTimeForClue(false, true); 
                 } else {
-                    targetData = await fetchValidAnimal();
+                    if (timerRef.current) clearInterval(timerRef.current);
                 }
-                setAnimalData(targetData);
-                if (targetData && targetData.image) {
-                    try { await preloadImage(targetData.image); } catch (err) {}
-                }
-                setIsImageReady(true);
-            }, 100); 
-            return () => clearTimeout(heavyLiftingTimer);
-        }
-    }, [view]);
+            }
+            return () => { if (timerRef.current) clearInterval(timerRef.current); };
+        }, [timerEnabled]);
 
-    const fetchValidAnimal = async (attempt = 1) => {
-        if (attempt > 3) {
-            setIsOfflineMode(true); 
+        useEffect(() => {
+            if (view === 'countdown') {
+            // --- THE BOUNCER ---
+            // ⬇️ THE FIX: Only check if the data is loading!
+                if (dataLoading) {
+                    console.log(`⏳ [Countdown] Paused. Waiting for data to finish downloading...`);
+                    return; 
+                }
+
+            // --- YOUR EXISTING RESET LOGIC ---
+                setWrongGuesses([]); setRoundScore(5); setGuessLocked(false);
+                setGameResult(null); setSelectedGroup(null); setGameId(prev => prev + 1); 
+                setCurrentClueIndex(-1); setIsImageReady(false); 
+                setActiveViewIndex(0);
+                interactionLockRef.current = false; 
+
+                const tutorialDone = localStorage.getItem('wildGuess_tutorial_complete');
+                setIsTutorialMode(!tutorialDone);
+                if (!tutorialDone) setTutorialStep(0);
+
+            // --- YOUR EXISTING FETCH LOGIC ---
+                const heavyLiftingTimer = setTimeout(async () => {
+                    let targetData = null;
+                    if (preloadedData) {
+                        targetData = preloadedData;
+                        setPreloadedData(null);
+                    } else {
+                    // Because of "The Bouncer" above, we are 100% sure this will now search the correct continent!
+                        targetData = await fetchValidAnimal();
+                    }
+
+                    setAnimalData(targetData);
+
+                    if (targetData && targetData.image) {
+                        try { await preloadImage(targetData.image); } catch (err) {}
+                    }
+                    setIsImageReady(true);
+                }, 100); 
+
+                return () => clearTimeout(heavyLiftingTimer);
+            }
+        }, [view, targetRegion, loadedRegion, dataLoading]); // <-- IMPORTANT: Added these to the dependency array
+
+        // --- OPTIMIZED REGION PRELOADER ---
+        // This watches the dropdown. It only fires when the spreadsheet finishes loading.
+        useEffect(() => { 
+        // 1. Wait for the Google Sheet to catch up
+            // ⬇️ THE FIX: Only check if the data is loading!
+            if (dataLoading) {
+                console.log(`⏳ [Preload] Waiting for spreadsheet to process...`);
+                return; 
+            }
+
+        // 2. Only fetch if we are sitting in the menu! 
+        // (If we are in the game, the game loop handles preloading automatically)
+            if (view === 'menu') {
+                console.log(`🔄 [Preload] Sheet ready for ${targetRegion}. Fetching standby animal...`);
+                setPreloadedData(null); 
+                preloadNextGame();      
+            }
+        }, [targetRegion, loadedRegion, view, dataLoading]);
+
+        const fetchValidAnimal = async (attempt = 1) => {
+        // 1. FAILSAFE (Increased attempts because "One by One" relies on luck)
+        if (attempt > 20) { 
+            console.warn("⚠️ [Fetch] Max attempts reached. Switching to backup.");
+            setIsOfflineMode(true);
             return BACKUP_ANIMALS[Math.floor(Math.random() * BACKUP_ANIMALS.length)];
         }
-        const historyJSON = localStorage.getItem('wildGuess_played');
-        const reportedJSON = localStorage.getItem('wildGuess_reported'); 
-        let played = historyJSON ? JSON.parse(historyJSON) : [];
-        let reported = reportedJSON ? JSON.parse(reportedJSON) : [];
-        const undiscovered = ALL_ANIMALS_FLAT.filter(a => !unlockedAnimals.has(a.name));
-        const validUndiscovered = undiscovered.filter(a => !played.includes(a.name));
-        let target;
-        if (validUndiscovered.length > 0) {
-            target = validUndiscovered[Math.floor(Math.random() * validUndiscovered.length)];
-        } else {
-            const available = ALL_ANIMALS_FLAT.filter(a => !played.includes(a.name));
-            if (available.length === 0) {
-                played = []; localStorage.removeItem('wildGuess_played');
-                target = ALL_ANIMALS_FLAT[Math.floor(Math.random() * ALL_ANIMALS_FLAT.length)];
-            } else {
-                target = available[Math.floor(Math.random() * available.length)];
-            }
-        }
-        if (!played.includes(target.name)) {
-            played.push(target.name);
-            localStorage.setItem('wildGuess_played', JSON.stringify(played));
-        }
-        const randomPage = Math.floor(Math.random() * 30) + 1; 
-        const excludeTerms = "19,23,25,26,27,28,29,30"; 
-        const allowedLicenses = "cc0,cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa";
-        const excludeTaxa = "47144,47126,47170"; 
-        const fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_name=${target.sciName}&quality_grade=research&photos=true&per_page=1&page=${randomPage}&without_taxon_id=${excludeTaxa}&without_term_value_id=${excludeTerms}&photo_license=${allowedLicenses}`;
 
-        try {
+        // 2. GET HISTORY
+        const historyJSON = localStorage.getItem('wildGuess_played');
+        const played = historyJSON ? JSON.parse(historyJSON) : [];
+
+        // 3. FILTER BY REGION
+        let availableAnimals = ALL_ANIMALS_FLAT;
+
+        if (targetRegion !== "Any") {
+            const cleanTarget = targetRegion.replace(/\s+/g, '').toLowerCase();
+            availableAnimals = ALL_ANIMALS_FLAT.filter(a => 
+                a.region?.replace(/\s+/g, '').toLowerCase() === cleanTarget
+            );
+        }
+
+        // 4. SAFETY FALLBACK
+        if (availableAnimals.length === 0) {
+            console.warn(`Oops! Couldn't find animals for ${targetRegion}, falling back to Any!`);
+            availableAnimals = ALL_ANIMALS_FLAT; 
+        }
+
+        // 5. PICK THE ANIMAL (Only declared once!)
+        const targetAnimal = availableAnimals[Math.floor(Math.random() * availableAnimals.length)];
+
+        // 6. CONSTRUCT URL (Fetch a batch of 10)
+        let fetchUrl = `https://api.inaturalist.org/v1/observations?taxon_id=${targetAnimal.id}&photo_license=cc0,cc-by,cc-by-sa&quality_grade=research&photos=true&per_page=10`;
+
+        if (targetRegion !== "Any" && REGION_IDS[targetRegion]) {
+            fetchUrl += `&place_id=${REGION_IDS[targetRegion]}`;
+        }
+
+        /*console.log(`🚀 [Debug] URL: ${fetchUrl}`);*/
+
+            try {
             const response = await fetch(fetchUrl);
             if (!response.ok) throw new Error(`Server Error: ${response.status}`);
             const data = await response.json();
-            if (!data.results || data.results.length === 0) return fetchValidAnimal(attempt + 1); 
-            const obs = data.results[0];
-            if (reported.includes(obs.id) || globalBlacklist.includes(obs.id)) return fetchValidAnimal(attempt);
-            const obsSciName = obs.taxon?.name?.toLowerCase() || "";
-            const targetSciName = target.sciName.toLowerCase();
-            if (!obsSciName.includes(targetSciName)) return fetchValidAnimal(attempt);
-            if (isLowQualityRecord(obs)) return fetchValidAnimal(attempt);
-            const lat = obs.geojson?.coordinates[1] || obs.location?.split(',')[0];
-            const lng = obs.geojson?.coordinates[0] || obs.location?.split(',')[1];
-            if (!lat || !lng || !obs.photos || obs.photos.length === 0) return fetchValidAnimal(attempt + 1); 
-            const dateObj = new Date(obs.observed_on || obs.created_at);
-            const dateStr = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-            setIsOfflineMode(false);
-            return {
-                id: obs.id, 
-                name: target.name,            
-                correctName: target.name, 
-                sciName: target.displayLatin || target.sciName,       
-                family: target.family || "Unknown Family", 
-                image: obs.photos[0].url.replace('square', 'original').replace('small', 'original').replace('medium', 'original').replace('large', 'original'),
-                lat: parseFloat(lat),
-                lng: parseFloat(lng),
-                location: obs.place_guess || "Unknown Wilderness",
-                recordedBy: obs.user?.login || obs.user?.name || "Unknown Observer",
-                link: obs.uri,
-                stats: { trait: target.clue || target.hint || "No hint available.", date: dateStr, year: dateObj.getFullYear() }
-            };
+
+            // 5. CHECK RESULT USING OUR CUSTOM TEXT SCANNER
+            if (data.results.length > 0) {
+                
+                // ⬇️ Look through the 10 results and find the FIRST one that is NOT scat/feathers/etc.
+                const bestMatch = data.results.find(record => !isLowQualityRecord(record));
+
+                if (bestMatch) {
+                    // SUCCESS! We found a clean photo!
+                    console.log(`✅ [Debug] Success! Found clean observation:`, bestMatch.id);
+
+                    // ⬇️ NEW: Grab the Wikipedia Summary using the Taxon ID
+                    let wikiText = null;
+                    try {
+                        // bestMatch.taxon.id is the specific animal's ID in the database
+                        const taxaRes = await fetch(`https://api.inaturalist.org/v1/taxa/${bestMatch.taxon.id}`);
+                        const taxaData = await taxaRes.json();
+                        if (taxaData.results && taxaData.results.length > 0) {
+                            wikiText = taxaData.results[0].wikipedia_summary;
+                        }
+                    } catch (e) {
+                        console.warn("Could not fetch Wikipedia summary.");
+                    }
+
+                    // Update History
+                    if (!played.includes(targetAnimal.name)) {
+                        played.push(targetAnimal.name);
+                        localStorage.setItem('wildGuess_played', JSON.stringify(played));
+                    }
+
+                    setIsOfflineMode(false);
+                    const dateObj = new Date(bestMatch.observed_on || bestMatch.created_at);
+                    const dateStr = dateObj.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+
+                    return {
+                        id: bestMatch.id,
+                        name: targetAnimal.name,
+                        correctName: targetAnimal.name,
+                        sciName: targetAnimal.displayLatin || targetAnimal.sciName,
+                        image: bestMatch.photos[0].url.replace('square', 'original').replace('small', 'original').replace('medium', 'original').replace('large', 'original'),
+                        lat: parseFloat(bestMatch.geojson?.coordinates[1] || 0),
+                        lng: parseFloat(bestMatch.geojson?.coordinates[0] || 0),
+                        location: bestMatch.place_guess || "Unknown Wilderness",
+                        recordedBy: bestMatch.user?.login || "Unknown Observer",
+                        link: bestMatch.uri,
+                        wikiSummary: wikiText, // ⬅️ WIKIPEDIA TEXT SAVED TO STATE HERE
+                        stats: { 
+                            clue1: targetAnimal.clue1 || "No hint available.", 
+                            clue2: targetAnimal.clue2 || "No further hints available.",
+                            date: dateStr, 
+                            year: dateObj.getFullYear() 
+                        }
+                    };
+                } else {
+                    // If ALL 10 results were scat/feathers, log it and try a new animal!
+                    console.warn(`⚠️ [Debug] All 10 results for ${targetAnimal.name} were low quality. Trying next animal...`);
+                    return fetchValidAnimal(attempt + 1);
+                }
+            }
+
+            // 6. NO RESULT? RETRY.
+            console.log(`⚠️ [Debug] 0 results for ${targetAnimal.name} in ${targetRegion}. Trying next animal...`);
+            return fetchValidAnimal(attempt + 1);
+
         } catch (error) {
-            await new Promise(r => setTimeout(r, 1000));
+            console.error("🔥 [Fetch] Error:", error);
+            // Don't wait too long, just try the next one
             return fetchValidAnimal(attempt + 1);
         }
     };
 
+
     const preloadNextGame = async () => {
-        try { const data = await fetchValidAnimal(); setPreloadedData(data); } catch (e) { console.warn("Background fetch failed", e); }
+        // Create a unique ID for this specific fetch
+        const currentPreloadId = ++activePreloadRef.current;
+        console.log("⏳ [Preload] Starting background fetch...");
+
+        try { 
+            const data = await fetchValidAnimal(); 
+
+            // Only save the data if the user hasn't changed regions while we were fetching
+            if (activePreloadRef.current === currentPreloadId) {
+                setPreloadedData(data); 
+                /*console.log("✨ [Preload] Ready:", data.name);*/
+            } else {
+                /*console.log("🗑️ [Preload] Ignored stale data for:", data.name);*/
+            }
+        } catch (e) { 
+            console.warn("Background fetch failed", e); 
+        }
     };
 
     const handleSaveProfile = async (chosenName) => {
@@ -851,16 +1069,16 @@ const WildGuessGame = () => {
             sfx.play('click');
             console.log("👉 [handleLogin] Calling signInWithPopup...");
             const result = await signInWithPopup(auth, provider);
-            
+
             console.log("👉 [handleLogin] Success! User:", result.user.uid);
             setUser(result.user);
-            
+
             // Force a profile read immediately
             const userRef = doc(db, "users", result.user.uid);
             const userSnap = await getDoc(userRef);
-            
+
             console.log("👉 [handleLogin] Profile Check. Exists?", userSnap.exists());
-            
+
             if (userSnap.exists()) {
                 setUsername(userSnap.data().username);
                 setIsProfileSetup(true);
@@ -878,7 +1096,7 @@ const WildGuessGame = () => {
             isGoogleLoginInProgress.current = false;
         }
     };
-    
+
     const preloadImage = (src) => {
         return new Promise((resolve, reject) => {
             const img = new Image();
@@ -927,6 +1145,7 @@ const WildGuessGame = () => {
             if (nextIndex > 4) { endGame('loss'); return 4; }
             setGuessLocked(false);
             setRoundScore(5 - nextIndex);
+            setActiveViewIndex(nextIndex); // ⬅️ ADD THIS LINE to auto-scroll to the new clue
             return nextIndex;
         });
     };
@@ -952,6 +1171,7 @@ const WildGuessGame = () => {
             setIsTutorialMode(true);
             setTutorialStep(0);
             setCurrentClueIndex(0); 
+            setActiveViewIndex(0);
             setRoundScore(5);
             setWrongGuesses([]);
             setSelectedGroup(null); 
@@ -959,29 +1179,6 @@ const WildGuessGame = () => {
         }
     };
 
-    const nextTutorialStep = () => {
-        sfx.play('click', 0.2);
-        if (tutorialStep >= 7) {
-            setIsTutorialMode(false);
-            localStorage.setItem('wildGuess_tutorial_complete', 'true');
-            setShowToast(true);
-            setTimeout(() => setShowToast(false), 8000);
-            startGame(); 
-            return;
-        }
-
-        if (tutorialStep < TUTORIAL_DATA.length - 1) {
-            const nextStep = tutorialStep + 1;
-            setTutorialStep(nextStep);
-
-            // LOGIC UPDATE FOR NEW CLUE ORDER
-            // Clue 1 (Index 0) is default.
-            if (nextStep === 1) { setCurrentClueIndex(1); setRoundScore(4); } // Reveal Taxonomy
-            if (nextStep === 2) { setCurrentClueIndex(2); setRoundScore(3); } // Reveal Location
-            if (nextStep === 3) { setCurrentClueIndex(3); setRoundScore(2); } // Reveal Photo
-            if (nextStep === 6) { setCurrentClueIndex(4); setRoundScore(1); } // Wrong Guess -> Final Chance
-        }
-    };
 
     const handleCategoryClick = (group) => {
         sfx.play('click'); setSelectedGroup(group);
@@ -1035,9 +1232,30 @@ const WildGuessGame = () => {
         }
     };
 
-    const handleFinalGuess = (animalName) => {
+    const handleFinalGuess = (guessedAnimal) => {
+        // 1. SAFETY CHECK: If the search bar accidentally passed a string instead of an object, 
+        // find the actual animal object from our flat list!
+        if (typeof guessedAnimal === 'string') {
+            const foundAnimal = ALL_ANIMALS_FLAT.find(a => a.name === guessedAnimal);
+            if (foundAnimal) {
+                guessedAnimal = foundAnimal;
+            } else {
+                return; // Failsafe: if we somehow can't find it, do nothing.
+            }
+        }
+
+        /*console.log("🤔 GUESS CHECK. Guessed:", guessedAnimal, " | Target:", animalData);*/
+
+        // Extract the name so we can still use it for the red wrong-guess buttons
+        const animalName = guessedAnimal.name;
+
+        // 2. BULLETPROOF ID CHECK: Get the TRUE Taxon ID of the target animal from our database
+        // (This prevents the iNaturalist Photo ID from ruining the comparison)
+        const trueTargetId = ALL_ANIMALS_FLAT.find(a => a.name === animalData.correctName)?.id;
+
         if (isTutorialMode) {
-            const isCorrect = animalName === animalData.correctName;
+            const isCorrect = guessedAnimal.id === trueTargetId;
+            
             if (tutorialStep === 5) {
                 if (isCorrect) { sfx.playWin(); endGame('win'); setTutorialStep(7); } 
                 else { sfx.play('incorrect', 0.3); setWrongGuesses([animalName]); setCurrentClueIndex(4); setRoundScore(1); setTutorialStep(6); }
@@ -1047,12 +1265,16 @@ const WildGuessGame = () => {
             }
             return;
         }
+
         if (guessLocked || view !== 'game' || interactionLockRef.current) return; 
-        if (animalName === animalData.correctName) {
+
+        // 3. FINAL WIN/LOSS CHECK
+        if (guessedAnimal.id === trueTargetId) {
             sfx.playWin(); endGame('win');
         } else {
             sfx.play('incorrect', 0.3); 
             setWrongGuesses(prev => [...prev, animalName]);
+            
             if (currentClueIndex === 4) { endGame('loss'); } 
             else { interactionLockRef.current = true; setTimeLeft(15); advanceClue(); }
         }
@@ -1124,36 +1346,94 @@ const WildGuessGame = () => {
                                     <button onClick={() => { handleExitGame(); setShowSettings(false); }} className="flex-1 bg-red-500 text-white font-bold py-2 rounded-xl hover:bg-red-600 transition-colors text-xs uppercase tracking-wide">Yes, Exit</button>
                                 </div>
                             </div>
-                        ) : (
+                            ) : (
                             <button onClick={() => setConfirmingExit(true)} className="w-full bg-red-50 text-red-500 border border-red-200 font-bold py-3 rounded-xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2"><span>🚪</span> Exit Expedition</button>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
-        );
+                );
     };
 
+    // --- ⬇️ CALCULATE JOURNAL PROGRESS ⬇️ ---
+    const filteredJournalAnimals = ALL_ANIMALS_FLAT.filter(animal => {
+        if (journalRegionFilter === "All") return true;
+        
+        // ⬇️ NEW: Strip all spaces from both sides before comparing them!
+        const cleanAnimalRegion = animal.region?.replace(/\s+/g, '').toLowerCase();
+        const cleanFilterRegion = journalRegionFilter.replace(/\s+/g, '').toLowerCase();
+        
+        return cleanAnimalRegion === cleanFilterRegion;
+    });
+    
+    const unlockedInCurrentView = filteredJournalAnimals.filter(a => unlockedAnimals.has(a.name)).length;
+    // --- ⬆️ END CALCULATION ⬆️ ---
+
     const journalModal = showJournal && (
-        <div className="fixed inset-0 z-[90] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[90] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-amber-50 rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden border-4 border-amber-200 relative animate-pop">
-                <button onClick={() => setShowJournal(false)} className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/10 hover:bg-black/20 rounded-full text-amber-900 font-bold flex items-center justify-center transition-colors text-xl">✕</button>
-                <div className="bg-amber-100 p-6 border-b border-amber-200 text-center flex-shrink-0">
+                <button onClick={() => { sfx.play('click'); setShowJournal(false); }} className="absolute top-4 right-4 z-10 w-10 h-10 bg-black/10 hover:bg-black/20 rounded-full text-amber-900 font-bold flex items-center justify-center transition-colors text-xl">✕</button>
+                
+                {/* HEADER AREA */}
+                <div className="bg-amber-100 p-6 border-b border-amber-200 text-center flex-shrink-0 relative">
                     <h2 className="font-freckle text-3xl text-amber-900 uppercase tracking-wide">Field Journal</h2>
-                    <div className="flex justify-center items-center gap-2 mt-2"><span className="text-amber-800/60 text-xs font-bold uppercase tracking-widest">Collection Progress:</span><span className="bg-amber-300 text-amber-900 px-2 py-0.5 rounded text-xs font-black">{unlockedAnimals.size} / {ALL_ANIMALS_FLAT.length}</span></div>
+                    
+                    {/* ⬇️ REGION DROPDOWN ⬇️ */}
+                    <div className="mt-4 flex justify-center">
+                        <div className="relative inline-block w-48">
+                            <select 
+                                value={journalRegionFilter}
+                                onChange={(e) => { sfx.play('click'); setJournalRegionFilter(e.target.value); }}
+                                className="w-full bg-white text-amber-900 font-bold py-2 px-3 rounded-lg border-2 border-amber-300 shadow-sm appearance-none cursor-pointer focus:outline-none focus:border-amber-500 text-sm uppercase tracking-wider text-center"
+                            >
+                                <option value="All">🌍 All Regions</option>
+                                <option value="Africa">Africa</option>
+                                <option value="Asia">Asia</option>
+                                <option value="Europe">Europe</option>
+                                <option value="NorthAmerica">North America</option> 
+                                <option value="SouthAmerica">South America</option> 
+                                <option value="Oceania">Oceania</option>
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-amber-700 text-xs">▼</div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center items-center gap-2 mt-4">
+                        <span className="text-amber-800/60 text-xs font-bold uppercase tracking-widest">
+                            {journalRegionFilter === "All" ? "Global Progress:" : `${journalRegionFilter} Progress:`}
+                        </span>
+                        <span className="bg-amber-300 text-amber-900 px-2 py-0.5 rounded text-xs font-black shadow-sm">
+                            {unlockedInCurrentView} / {filteredJournalAnimals.length}
+                        </span>
+                    </div>
                 </div>
+
+                {/* SCROLLABLE GRID AREA */}
                 <div className="flex-1 overflow-y-auto custom-scroll p-4 md:p-8 bg-[url('https://www.transparenttextures.com/patterns/cream-paper.png')]">
                     <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
-                        {ALL_ANIMALS_FLAT.map((animal, idx) => {
+                        
+                        {/* ⬇️ UPDATED: Uses our pre-calculated list! ⬇️ */}
+                        {filteredJournalAnimals.map((animal, idx) => {
                             const isUnlocked = unlockedAnimals.has(animal.name);
                             return (
                                 <div key={idx} className={`aspect-square rounded-xl flex flex-col items-center justify-center p-2 transition-all duration-500 border-2 ${isUnlocked ? 'bg-white border-amber-200 shadow-md rotate-0 opacity-100' : 'bg-slate-100 border-slate-200 shadow-none opacity-60'}`}>
                                     <div className="text-4xl md:text-5xl mb-2 transition-all duration-500" style={!isUnlocked ? { color: 'transparent', textShadow: '0 0 0 #94a3b8', filter: 'blur(1px)' } : {}}>
                                         {animal.emoji || animal.groupEmoji || "🐾"}
                                     </div>
-                                    <div className={`text-[9px] md:text-[10px] font-bold text-center uppercase tracking-tight leading-tight transition-opacity duration-500 ${isUnlocked ? 'text-slate-700 opacity-100' : 'text-slate-400 opacity-0'}`}>{animal.name}</div>
+                                    <div className={`text-[9px] md:text-[10px] font-bold text-center uppercase tracking-tight leading-tight transition-opacity duration-500 ${isUnlocked ? 'text-slate-700 opacity-100' : 'text-slate-400 opacity-0'}`}>
+                                        {animal.name}
+                                    </div>
                                 </div>
                             );
                         })}
+                        
+                        {/* Empty State Failsafe */}
+                        {filteredJournalAnimals.length === 0 && (
+                            <div className="col-span-full text-center py-10 text-amber-900/50 font-bold uppercase tracking-widest">
+                                No animals found for this region.
+                            </div>
+                        )}
+
                     </div>
                 </div>
             </div>
@@ -1166,99 +1446,275 @@ const WildGuessGame = () => {
                 <button onClick={() => { sfx.play('click'); setShowSettings(true); }} className="absolute top-4 right-4 z-50 w-12 h-12 bg-white/10 backdrop-blur-md border-2 border-white/20 rounded-full shadow-lg text-white flex items-center justify-center hover:bg-white/20 hover:scale-110 hover:rotate-90 transition-all duration-500 group" title="Settings"><span className="text-2xl drop-shadow-md">⚙️</span></button>
                 <div className="fixed inset-0 overflow-hidden pointer-events-none">
                     {menuStickers.map((sticker) => (<div key={sticker.id} className="absolute emoji-sticker transition-transform duration-1000 ease-in-out hover:scale-110" style={{ top: `${sticker.top}%`, left: `${sticker.left}%`, fontSize: `${sticker.size}rem`, transform: `rotate(${sticker.rotation}deg)`, opacity: sticker.opacity }}>{sticker.emoji}</div>))}
-                </div>
-                <div className="relative z-10 flex flex-col items-center w-full max-w-md md:w-1/2 md:items-end md:pr-8 flex-shrink-0">
-                    <h1 className="font-freckle text-5xl md:text-7xl text-green-950 sticker-text drop-shadow-2xl mb-4 tracking-wider leading-none whitespace-nowrap">W<span className="-mx-4 md:-mx-7 relative -top-1">🐊</span>LD GUESS</h1>
-                    <div className="bg-white/95 backdrop-blur-sm p-5 md:p-6 rounded-3xl shadow-2xl w-full text-center border-4 border-white transform -rotate-1 mb-6">
-                        <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-3">HOW TO PLAY</p>
-                        <div className="flex justify-between items-start px-1 mb-2 gap-1">
-                            <div className="flex flex-col items-center w-1/3"><span className="text-4xl mb-2 filter drop-shadow-sm">📸</span><span className="text-[9px] md:text-[10px] font-black text-slate-700 uppercase tracking-tight leading-tight">Real-Life Animal Sighting</span></div>
-                            <div className="text-slate-300 text-xl mt-2">➜</div>
-                            <div className="flex flex-col items-center w-1/3"><span className="text-4xl mb-2 filter drop-shadow-sm">🧑‍🔬</span><span className="text-[9px] md:text-[10px] font-black text-slate-700 uppercase tracking-tight leading-tight">Analyze the Clues</span></div>
-                            <div className="text-slate-300 text-xl mt-2">➜</div>
-                            <div className="flex flex-col items-center w-1/3"><span className="text-4xl mb-2 filter drop-shadow-sm">🔍</span><span className="text-[9px] md:text-[10px] font-black text-slate-700 uppercase tracking-tight leading-tight">Identify the Animal</span></div>
-                        </div>
                     </div>
-                    <button onClick={startGame} onMouseEnter={() => sfx.play('hover', 0.2)} className="relative overflow-hidden text-white font-bold py-4 rounded-full shadow-[0_6px_0_#14532d] active:shadow-none active:translate-y-1 transform transition-all border-4 border-white w-full hover:scale-105 bg-green-600 hover:bg-green-500"><span className="text-2xl font-black tracking-widest uppercase drop-shadow-md">START EXPEDITION</span></button>
-                    <div className="mt-4 flex flex-col items-center gap-3 w-full">
-                        {user ? (
-                            <>
+                    <div className="relative z-10 flex flex-col items-center w-full max-w-md md:w-1/2 md:items-end md:pr-8 flex-shrink-0">
+                        <h1 className="font-freckle text-5xl md:text-7xl text-green-950 sticker-text drop-shadow-2xl mb-4 tracking-wider leading-none whitespace-nowrap">W<span className="-mx-4 md:-mx-7 relative -top-1">🐊</span>LD GUESS</h1>
+                        <div className="bg-white/95 backdrop-blur-sm p-5 md:p-6 rounded-3xl shadow-2xl w-full text-center border-4 border-white transform -rotate-1 mb-6">
+                            <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mb-3">HOW TO PLAY</p>
+                            <div className="flex justify-between items-start px-1 mb-2 gap-1">
+                                <div className="flex flex-col items-center w-1/3"><span className="text-4xl mb-2 filter drop-shadow-sm">📸</span><span className="text-[9px] md:text-[10px] font-black text-slate-700 uppercase tracking-tight leading-tight">Real-Life Animal Sighting</span></div>
+                                <div className="text-slate-300 text-xl mt-2">➜</div>
+                                <div className="flex flex-col items-center w-1/3"><span className="text-4xl mb-2 filter drop-shadow-sm">🧑‍🔬</span><span className="text-[9px] md:text-[10px] font-black text-slate-700 uppercase tracking-tight leading-tight">Analyze the Clues</span></div>
+                                <div className="text-slate-300 text-xl mt-2">➜</div>
+                                <div className="flex flex-col items-center w-1/3"><span className="text-4xl mb-2 filter drop-shadow-sm">🔍</span><span className="text-[9px] md:text-[10px] font-black text-slate-700 uppercase tracking-tight leading-tight">Identify the Animal</span></div>
+                            </div>
+                        </div>
+                    {/* REGION SELECTOR */}
+                        <div className="w-full mb-4 relative z-20">
+                            <select 
+                                value={targetRegion} 
+                                onChange={(e) => { sfx.play('click'); setTargetRegion(e.target.value); }}
+                                className="w-full bg-emerald-800 text-white font-bold py-3 px-4 rounded-xl border-4 border-white/20 shadow-lg appearance-none cursor-pointer focus:outline-none focus:border-emerald-400 text-center uppercase tracking-wide"
+                            >
+                                {REGION_OPTIONS.map((opt) => (
+                                    <option key={opt.value} value={opt.value} className="bg-white text-slate-800 font-bold text-sm py-2">
+                                        {opt.label}
+                                    </option>
+                                    ))}
+                            </select>
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white text-xl">▼</div>
+                        </div>
+
+                {/* START BUTTON */}
+                        <button onClick={startGame} onMouseEnter={() => sfx.play('hover', 0.2)} className="relative overflow-hidden text-white font-bold py-4 rounded-full shadow-[0_6px_0_#14532d] active:shadow-none active:translate-y-1 transform transition-all border-4 border-white w-full hover:scale-105 bg-green-600 hover:bg-green-500">
+                            <span className="text-2xl font-black tracking-widest uppercase drop-shadow-md">START EXPEDITION</span>
+                        </button>
+                        <div className="mt-4 flex flex-col items-center gap-3 w-full">
+                            {user ? (
+                                <>
                                 <div className="bg-black/20 text-white/80 px-4 py-1 rounded-full text-xs font-bold backdrop-blur-sm flex items-center gap-2">{user.photoURL && <img src={user.photoURL} alt="User" className="w-4 h-4 rounded-full border border-white/50" />}Playing as: <span className="text-white">{username}</span></div>
                                 <button onMouseEnter={() => sfx.play('hover', 0.2)} onClick={fetchJournal} className="bg-amber-100 text-amber-900 border-2 border-amber-300 px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg hover:scale-105 transition-transform flex items-center gap-2"><span className="text-lg">📖</span> Field Journal</button>
                                 <button onMouseEnter={() => sfx.play('hover', 0.2)} onClick={() => { sfx.play('click'); handleLogout(); }} className="text-[10px] text-green-200/70 hover:text-white font-bold uppercase tracking-widest transition-colors hover:underline decoration-green-400 decoration-2 underline-offset-4">( Logout )</button>
-                            </>
-                        ) : (
-                            <>
+                                </>
+                                ) : (
+                                <>
                                 <button onClick={handleLogin} onMouseEnter={() => sfx.play('hover', 0.2)} className="bg-white text-slate-700 border-2 border-slate-200 px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:scale-105 transition-transform flex items-center gap-2"><svg className="w-4 h-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>Login with Google</button>
                                 <div className="flex items-center gap-4 mb-6"><div className="h-px bg-slate-200 flex-1"></div><span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Or Play as Guest</span><div className="h-px bg-slate-200 flex-1"></div></div>
                                 <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.target); handleSaveProfile(formData.get('username')); }} className="space-y-4"><input name="username" type="text" placeholder="Enter Guest Name..." maxLength={15} required className="w-full px-4 py-3 text-lg border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:outline-none text-center font-bold text-slate-700 bg-slate-50"/><button type="submit" disabled={isSaving} className={`w-full font-bold py-3 rounded-xl transition transform shadow-lg text-white ${isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-400 hover:bg-slate-500 hover:scale-[1.02]'}`}>{isSaving ? "STARTING..." : "PLAY AS GUEST"}</button></form>
-                            </>
-                        )}
-                    </div>
-                </div>
-                <div className="relative z-10 w-full max-w-md md:w-1/2 h-[500px] md:h-[80vh] flex flex-col md:pl-8 flex-shrink-0 mb-12 md:mb-0">
-                    <div className="bg-orange-50/95 backdrop-blur-sm rounded-3xl shadow-2xl border-4 border-orange-100 overflow-hidden flex flex-col h-full max-h-[500px] md:max-h-full">
-                        <div className="bg-orange-100 p-2 border-b border-orange-200 flex flex-col gap-2">
-                            <div className="flex justify-between items-center px-2"><div className="flex items-center gap-2"><span className="text-xl">👑</span><h2 className="text-orange-800 font-black tracking-wide text-sm uppercase">Top Explorers</h2></div></div>
-                            <div className="flex bg-orange-200/50 p-1 rounded-lg">{['daily', 'weekly', 'allTime'].map((tab) => (<button onMouseEnter={() => sfx.play('hover', 0.2)} onClick={() => { sfx.play('click', 0.1); setLeaderboardTab(tab); }} key={tab} className={`flex-1 text-[10px] font-bold uppercase py-1.5 rounded-md transition-all ${leaderboardTab === tab ? 'bg-white text-orange-600 shadow-sm scale-105' : 'text-orange-800/60 hover:text-orange-800'}`}>{tab === 'allTime' ? 'All Time' : tab}</button>))}</div>
-                        </div>
-                        <div className="flex-1 overflow-y-auto custom-scroll p-3 space-y-2">
-                            {leaderboardData.length === 0 ? (<div className="h-full flex flex-col items-center justify-center text-orange-300 opacity-50"><span className="text-4xl mb-2">⏳</span><span className="font-bold text-sm uppercase">Loading Scores...</span></div>) : (leaderboardData.map((player, index) => (<div onMouseEnter={() => sfx.play('hover', 0.2)} key={player.id} className={`flex items-center justify-between p-3 rounded-xl border-b-4 transition-transform hover:scale-[1.01] ${player.id === user?.uid ? 'bg-white border-emerald-200 shadow-sm ring-2 ring-emerald-400 ring-offset-1' : 'bg-white border-orange-100 shadow-sm'}`}><div className="flex items-center gap-3"><div className={`font-black text-sm w-8 h-8 flex items-center justify-center rounded-lg ${index === 0 ? 'bg-yellow-400 text-yellow-900' : index === 1 ? 'bg-slate-300 text-slate-700' : index === 2 ? 'bg-amber-600 text-amber-100' : 'bg-slate-100 text-slate-400'}`}>{index + 1}</div><div className="flex flex-col"><span className={`font-bold text-sm leading-tight ${player.id === user?.uid ? 'text-emerald-700' : 'text-slate-700'}`}>{player.username} {player.id === user?.uid && "(You)"}</span><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">{player.gamesPlayed || 0} Expeditions</span><span className="text-[9px] text-emerald-600/80 uppercase font-bold tracking-wider">{player.discoveries || 0} Animals Found</span></div></div></div><div className="bg-orange-100 px-3 py-1 rounded-lg"><span className="font-mono font-black text-orange-600 text-sm">{player.totalScore || 0}<span className="text-[9px] ml-0.5 opacity-60">PTS</span></span></div></div>)))}
-                        </div>
-                    </div>
-                </div>
-                {(!authLoading && !isProfileSetup) && (
-                    <div className="fixed inset-0 z-[60] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl text-center border-4 border-emerald-100 relative overflow-hidden">
-                            <div className="text-6xl mb-4 animate-bounce">🐊</div>
-                            
-                            {/* DYNAMIC HEADER LOGIC */}
-                            {user && !user.isAnonymous ? (
-                                // SCENARIO A: Logged in via Google, but no Username yet
-                                <>
-                                    <h2 className="text-3xl font-freckle text-emerald-600 mb-2">Login Successful!</h2>
-                                    <p className="text-slate-500 mb-6 font-bold">You are authenticated. Please choose a nickname to complete your profile.</p>
-                                    {/* No Google Button here, because they are already logged in! */}
                                 </>
-                            ) : (
-                                // SCENARIO B: Guest / Not Logged In
-                                <>
-                                    <h2 className="text-3xl font-freckle text-green-950 mb-2">Welcome to Wild Guess!</h2>
-                                    <p className="text-slate-500 mb-6">Join the expedition to track your scores and compete on the leaderboard.</p>
-                                    
-                                    <button onClick={handleLogin} onMouseEnter={() => sfx.play('hover', 0.2)} className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-200 text-slate-700 font-bold py-3 rounded-xl shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all mb-6 group">
-                                        <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                                        </svg>
-                                        Sign in with Google
-                                    </button>
-
-                                    <div className="flex items-center gap-4 mb-6">
-                                        <div className="h-px bg-slate-200 flex-1"></div>
-                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Or Play as Guest</span>
-                                        <div className="h-px bg-slate-200 flex-1"></div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="relative z-10 w-full max-w-md md:w-1/2 h-[500px] md:h-[80vh] flex flex-col md:pl-8 flex-shrink-0 mb-12 md:mb-0">
+                            <div className="bg-orange-50/95 backdrop-blur-sm rounded-3xl shadow-2xl border-4 border-orange-100 overflow-hidden flex flex-col h-full max-h-[500px] md:max-h-full">
+                                <div className="bg-orange-100 p-2 border-b border-orange-200 flex flex-col gap-2">
+                                    <div className="flex justify-between items-center px-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xl">👑</span>
+                                            <h2 className="text-orange-800 font-black tracking-wide text-sm uppercase">Top Explorers</h2>
+                                        </div>
                                     </div>
-                                </>
-                            )}
+
+                            {/* ROW 1: TIME MATRIX */}
+                                <div className="flex bg-orange-200/50 p-1 rounded-lg">
+                                    {['daily', 'weekly', 'monthly'].map((tab) => {
+                                        let label = "";
+                                        if (tab === 'daily') label = "24 Hours";
+                                        if (tab === 'weekly') label = "7 Days";
+                                        if (tab === 'monthly') label = "30 Days";
+
+                                        return (
+                                            <button 
+                                                onMouseEnter={() => sfx.play('hover', 0.2)} 
+                                                onClick={() => { sfx.play('click', 0.1); setLeaderboardTab(tab); }} 
+                                                key={tab} 
+                                                className={`flex-1 text-[10px] font-bold uppercase py-1.5 rounded-md transition-all ${leaderboardTab === tab ? 'bg-white text-orange-600 shadow-sm scale-105' : 'text-orange-800/60 hover:text-orange-800'}`}
+                                            >
+                                                {label}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+
+                            {/* ROW 2: TIER MATRIX */}
+                                    <div className="flex bg-orange-200/50 p-1 rounded-lg">
+                                        {[
+                                            { id: 'hobbyist', label: 'Hobbyist (10 games or less)' },
+                                            { id: 'explorer', label: 'Expert Explorers' }
+                                        ].map((t) => (
+                                            <button 
+                                                onMouseEnter={() => sfx.play('hover', 0.2)} 
+                                                onClick={() => { sfx.play('click', 0.1); setLeaderboardTier(t.id); }} 
+                                                key={t.id} 
+                                                className={`flex-1 text-[10px] font-bold uppercase py-1.5 rounded-md transition-all ${leaderboardTier === t.id ? 'bg-white text-emerald-600 shadow-sm scale-105' : 'text-orange-800/60 hover:text-orange-800'}`}
+                                            >
+                                                {t.label}
+                                            </button>
+                                            ))}
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto custom-scroll p-3 space-y-2">
+                                    {leaderboardData.length === 0 ? (<div className="h-full flex flex-col items-center justify-center text-orange-300 opacity-50"><span className="text-4xl mb-2">⏳</span><span className="font-bold text-sm uppercase">Loading Scores...</span></div>) : (leaderboardData.map((player, index) => (<div onMouseEnter={() => sfx.play('hover', 0.2)} key={player.id} className={`flex items-center justify-between p-3 rounded-xl border-b-4 transition-transform hover:scale-[1.01] ${player.id === user?.uid ? 'bg-white border-emerald-200 shadow-sm ring-2 ring-emerald-400 ring-offset-1' : 'bg-white border-orange-100 shadow-sm'}`}><div className="flex items-center gap-3"><div className={`font-black text-sm w-8 h-8 flex items-center justify-center rounded-lg ${index === 0 ? 'bg-yellow-400 text-yellow-900' : index === 1 ? 'bg-slate-300 text-slate-700' : index === 2 ? 'bg-amber-600 text-amber-100' : 'bg-slate-100 text-slate-400'}`}>{index + 1}</div><div className="flex flex-col"><span className={`font-bold text-sm leading-tight ${player.id === user?.uid ? 'text-emerald-700' : 'text-slate-700'}`}>{player.username} {player.id === user?.uid && "(You)"}</span><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">{player.gamesPlayed || 0} Expeditions</span><span className="text-[9px] text-emerald-600/80 uppercase font-bold tracking-wider">{player.discoveries || 0} Animals Found</span></div></div></div><div className="bg-orange-100 px-3 py-1 rounded-lg flex items-center gap-1">
+                                        <span className="font-mono font-black text-orange-600 text-sm">
+                                            {player.averageScore.toFixed(1)}
+                                        </span>
+                                        <span className="text-[9px] opacity-60 font-bold text-orange-800 pt-0.5">AVG</span>
+                                    </div></div>)))}
+                                </div>
+                            </div>
+                        </div>
+                        {(!authLoading && !isProfileSetup) && (
+                            <div className="fixed inset-0 z-[60] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl text-center border-4 border-emerald-100 relative overflow-hidden">
+                                    <div className="text-6xl mb-4 animate-bounce">🐊</div>
+
+                            {/* DYNAMIC HEADER LOGIC */}
+                                    {user && !user.isAnonymous ? (
+                                // SCENARIO A: Logged in via Google, but no Username yet
+                                        <>
+                                        <h2 className="text-3xl font-freckle text-emerald-600 mb-2">Login Successful!</h2>
+                                        <p className="text-slate-500 mb-6 font-bold">You are authenticated. Please choose a nickname to complete your profile.</p>
+                                    {/* No Google Button here, because they are already logged in! */}
+                                        </>
+                                        ) : (
+                                // SCENARIO B: Guest / Not Logged In
+                                        <>
+                                        <h2 className="text-3xl font-freckle text-green-950 mb-2">Welcome to Wild Guess!</h2>
+                                        <p className="text-slate-500 mb-6">Join the expedition to track your scores and compete on the leaderboard.</p>
+
+                                        <button onClick={handleLogin} onMouseEnter={() => sfx.play('hover', 0.2)} className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-200 text-slate-700 font-bold py-3 rounded-xl shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all mb-6 group">
+                                            <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                                            </svg>
+                                            Sign in with Google
+                                        </button>
+
+                                        <div className="flex items-center gap-4 mb-6">
+                                            <div className="h-px bg-slate-200 flex-1"></div>
+                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Or Play as Guest</span>
+                                            <div className="h-px bg-slate-200 flex-1"></div>
+                                        </div>
+                                        </>
+                                        )}
 
                             {/* FORM (Always Visible) */}
-                            <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.target); handleSaveProfile(formData.get('username')); }} className="space-y-4">
-                                <input name="username" type="text" placeholder="Enter Explorer Name..." maxLength={15} required className="w-full px-4 py-3 text-lg border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:outline-none text-center font-bold text-slate-700 bg-slate-50"/>
-                                <button type="submit" disabled={isSaving} className={`w-full font-bold py-3 rounded-xl transition transform shadow-lg text-white ${isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-400 hover:bg-slate-500 hover:scale-[1.02]'}`}>
-                                    {isSaving ? "SAVING..." : (user && !user.isAnonymous ? "COMPLETE PROFILE" : "PLAY AS GUEST")}
-                                </button>
-                            </form>
+                                        <form onSubmit={(e) => { e.preventDefault(); const formData = new FormData(e.target); handleSaveProfile(formData.get('username')); }} className="space-y-4">
+                                            <input name="username" type="text" placeholder="Enter Explorer Name..." maxLength={15} required className="w-full px-4 py-3 text-lg border-2 border-slate-200 rounded-xl focus:border-emerald-500 focus:outline-none text-center font-bold text-slate-700 bg-slate-50"/>
+                                            <button type="submit" disabled={isSaving} className={`w-full font-bold py-3 rounded-xl transition transform shadow-lg text-white ${isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-400 hover:bg-slate-500 hover:scale-[1.02]'}`}>
+                                                {isSaving ? "SAVING..." : (user && !user.isAnonymous ? "COMPLETE PROFILE" : "PLAY AS GUEST")}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                )}
+        {showSettings && <SettingsModal />}
+        {journalModal}
+
+
+
+                {/* --- TIMER CHALLENGE MODAL --- */}
+        {showTimerPromo && (
+            <div className="fixed inset-0 z-[130] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border-4 border-green-400 relative animate-pop flex flex-col">
+
+                            {/* Header */}
+                    <div className="bg-green-50 pt-8 pb-6 px-6 flex flex-col items-center relative flex-shrink-0">
+                        <button onClick={handleDismissTimer} className="absolute top-3 right-3 w-8 h-8 bg-green-200/50 rounded-full text-green-800 font-bold hover:bg-green-200 transition-colors flex items-center justify-center">✕</button>
+
+                        <div className="text-6xl mb-4 animate-pulse drop-shadow-md">⏱️</div>
+                        <h2 className="text-2xl font-black text-green-800 uppercase tracking-widest text-center leading-none">Ready for a Challenge?</h2>
+                    </div>
+
+                            {/* Content */}
+                    <div className="px-6 pb-6 pt-6 text-slate-700 flex flex-col items-center text-center">
+                        <p className="text-sm font-medium mb-2">
+                            You've successfully observed <span className="font-bold text-green-600">10+ animals!</span> 
+                        </p>
+                        <p className="text-sm font-medium mb-6">
+                            Turn on the <span className="font-bold text-green-600">15-Second Timer</span> for a bit more of a challenge.
+                        </p>
+
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 w-full mb-6 text-xs text-slate-500 font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-inner">
+                            <span>⚙️</span> You can always turn it off in settings
+                        </div>
+
+                        <div className="flex flex-col w-full gap-3">
+                            <button onClick={handleAcceptTimer} className="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-xl uppercase tracking-widest transition-transform hover:scale-[1.02] shadow-lg shadow-green-200/50 flex items-center justify-center gap-2">
+                                <span>⏳</span> Turn Timer On
+                            </button>
+
+                            <button onClick={handleDismissTimer} className="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold py-3 rounded-xl uppercase tracking-wider transition-colors text-xs">
+                                No Thanks, Keep It Chill
+                            </button>
                         </div>
                     </div>
-                )}
-                {showSettings && <SettingsModal />}
-                {journalModal}
+                </div>
             </div>
-        );
+            )}
+                {/* ⬆️ END OF TIMER MODAL ⬆️ */}
+
+                {/* --- MASSIVE UPDATE MODAL --- */}
+        {showUpdateModal && (
+            <div className="fixed inset-0 z-[120] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border-4 border-emerald-400 relative animate-pop flex flex-col max-h-[90vh]">
+
+                        {/* Header & Picture */}
+                    <div className="bg-emerald-50 pt-8 pb-4 px-6 flex flex-col items-center relative flex-shrink-0">
+                        <button onClick={handleCloseUpdate} className="absolute top-3 right-3 w-8 h-8 bg-emerald-200/50 rounded-full text-emerald-800 font-bold hover:bg-emerald-200 transition-colors flex items-center justify-center">✕</button>
+
+                            {/* Make sure richard.jpg is in your public folder! */}
+                        <img src="/richard.jpg" alt="Richard Bolland" className="w-24 h-24 rounded-full shadow-lg border-4 border-white object-cover mb-4" />
+
+                        <h2 className="text-2xl font-black text-emerald-800 uppercase tracking-widest text-center leading-none">Huge Update!</h2>
+                            {/*<div className="text-2xl mt-2 animate-bounce">🎉</div>*/}
+                    </div>
+
+                        {/* Content Scroll Area */}
+                    <div className="px-6 pb-6 pt-2 overflow-y-auto custom-scroll text-slate-700 flex-1">
+                        <p className="text-sm font-medium text-center mb-5 leading-relaxed">
+                            A massive thanks to everyone who has played the game and offered feedback! It's been incredibly fun building this. Here's what's new:
+                        </p>
+
+                            {/* Spruced Up Feature List */}
+                        <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-inner mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-white rounded-lg shadow-sm flex items-center justify-center text-lg flex-shrink-0">🐾</div>
+                                <span className="text-sm font-bold text-slate-700 leading-tight">Expanded to over <span className="text-emerald-600">600 Animals</span></span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-white rounded-lg shadow-sm flex items-center justify-center text-lg flex-shrink-0">🌍</div>
+                                <span className="text-sm font-bold text-slate-700 leading-tight">Including <span className="text-emerald-600">6 Continents</span></span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-white rounded-lg shadow-sm flex items-center justify-center text-lg flex-shrink-0">📂</div>
+                                <span className="text-sm font-bold text-slate-700 leading-tight">Fresh <span className="text-emerald-600">Categories</span></span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-white rounded-lg shadow-sm flex items-center justify-center text-lg flex-shrink-0">🔎</div>
+                                <span className="text-sm font-bold text-slate-700 leading-tight">Restructed <span className="text-emerald-600">Hints & Clues</span></span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-white rounded-lg shadow-sm flex items-center justify-center text-lg flex-shrink-0">🏆</div>
+                                <span className="text-sm font-bold text-slate-700 leading-tight">A revamped <span className="text-emerald-600">Scoring System</span></span>
+                            </div>
+                        </div>
+
+                        <p className="text-xs text-center text-slate-500 font-bold mb-4 uppercase tracking-widest">
+                            Hope you find some fun animals,<br/>
+                            <a href="https://www.richardbolland.co.za" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:text-emerald-500 underline decoration-2 underline-offset-4 mt-1 inline-block transition-colors">
+                                Richard Bolland
+                            </a>
+                            <span className="block text-[8px] mt-7 opacity-60">A special shoutout to Clayden Knighton-Fitt who helped to add the extra animals.</span>
+                        </p>
+
+                        <button onClick={handleCloseUpdate} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-xl uppercase tracking-widest transition-transform hover:scale-[1.02] shadow-lg shadow-emerald-200/50">
+                            Let's Play!
+                        </button>
+                    </div>
+                </div>
+            </div>
+            )}
+
+    </div>
+    );
     }
+
+
+
 
     if (view === 'countdown') {
         return (<CountdownScreen onComplete={onCountdownComplete} stickers={menuStickers} isReady={!!animalData && isImageReady} />);
@@ -1267,7 +1723,7 @@ const WildGuessGame = () => {
     return (
         <div className="h-screen w-full flex flex-col md:flex-row bg-slate-100 overflow-hidden relative">
             <div id="landscape-warning" className="fixed inset-0 z-[100] bg-slate-900 text-white flex-col items-center justify-center p-6 text-center"><div className="text-6xl mb-6">🔄</div><h2 className="text-2xl font-bold mb-2">Please Rotate Device</h2><p className="text-slate-300">This game is designed for portrait mode.</p></div>
-            
+
             {/* LEFT PANEL */}
             <div className="flex-1 flex flex-col bg-white m-2 rounded-xl shadow-sm overflow-hidden relative order-1">
                 <div className="h-2 bg-slate-200 w-full flex-shrink-0"><div className={`h-full transition-all duration-1000 linear ${timerEnabled ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} style={{ width: `${(timeLeft / 15) * 100}%` }}></div></div>
@@ -1276,22 +1732,22 @@ const WildGuessGame = () => {
                     {showSettings && <SettingsModal />}
                     {isOfflineMode && (<div className="absolute top-16 left-1/2 -translate-x-1/2 z-[80] bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-bounce flex items-center gap-2 whitespace-nowrap"><span>⚠️</span> Server Offline: Using Backup Data</div>)}
                     {showToast && (<div className="absolute top-12 right-2 z-[70] bg-slate-800 text-white text-xs px-3 py-2 rounded-lg shadow-lg animate-pop max-w-[150px] text-right">Tutorial hidden.<br />Tap "OFF" to restart.</div>)}
-                    
+
                     <div className="absolute inset-0" key={gameId}>
-                        <div className={`absolute inset-0 transition-opacity duration-500 ${currentClueIndex >= 0 ? 'opacity-100' : 'opacity-0'}`}>{animalData && (<MapClue lat={animalData.lat} lng={animalData.lng} zoom={currentClueIndex < 2 ? 2 : 11} />)}</div>
+                        <div className={`absolute inset-0 transition-opacity duration-500 ${currentClueIndex >= 0 ? 'opacity-100' : 'opacity-0'}`}>{animalData && (<MapClue lat={animalData.lat} lng={animalData.lng} zoom={activeViewIndex < 1 ? 2 : 11} />)}</div>
                         <div className={`hidden md:block absolute inset-0 z-10 transition-opacity duration-1000 bg-slate-200 overflow-hidden ${currentClueIndex >= 4 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>{animalData?.image && (<div className="w-full h-full relative"><img src={animalData.image} className="w-full h-full object-cover blur-xl scale-110 transform" alt="Revealed Animal" /><div className="absolute inset-0 bg-black/10"></div></div>)}</div>
                     </div>
-                    
-                    <div className="hidden md:block absolute top-0 left-0 right-0 z-30 pt-6 text-center pointer-events-none"><h2 className="text-3xl md:text-4xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-tight uppercase leading-none">Take a <span className="text-emerald-400">Wild Guess</span></h2><p className="text-white text-sm font-bold mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] uppercase tracking-widest">Can you identify this animal?</p></div>
-                    
-                    {/* CLUES CONTAINER */}
-                    <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center pt-12 pb-2 px-2 md:pt-24 md:pb-4 md:px-4">
-                        {currentClueIndex >= 3 && animalData?.image && (
-                            <div className="w-full flex justify-center mb-2 md:mb-8 order-first pointer-events-auto">
+
+                  {/* CLUES CONTAINER */}
+                    <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center pb-2 px-2 md:pb-4 md:px-4">
+
+                        {/* THE PHOTO (Stays visible from Index 1 onwards) */}
+                        {activeViewIndex >= 1 && animalData?.image && (
+                            <div className={`absolute top-2 md:top-4 w-full flex justify-center pointer-events-auto ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
                                 <div className="relative bg-slate-200 rounded-2xl shadow-2xl overflow-hidden border-4 border-white w-48 h-32 md:w-64 md:h-48 flex-shrink-0 animate-pop">
                                     <img 
                                         src={animalData.image} 
-                                        className="w-full h-full object-cover blur-[8px] scale-110" 
+                                        className="w-full h-full object-cover blur-[4px] scale-110" 
                                         alt="Mystery Clue" 
                                     />
                                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
@@ -1299,10 +1755,66 @@ const WildGuessGame = () => {
                                     </div>
                                 </div>
                             </div>
-                        )}
-                        <div className={`order-1 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 2 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}><div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-4 md:py-2 rounded-lg shadow-xl border border-white/50"><span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block text-center tracking-wider">Location</span><span className="text-slate-800 font-bold text-xs md:text-lg leading-tight block">{animalData?.location}</span></div></div>
-                        <div className={`order-2 w-full flex justify-center md:static mt-auto mb-2 md:mb-4 transition-all duration-500 transform ${currentClueIndex >= 0 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'}`}><div className="bg-emerald-50/95 backdrop-blur-md px-3 py-1.5 md:px-5 md:py-3 rounded-lg shadow-xl border border-emerald-100 max-w-sm text-center mx-4"><span className="text-[8px] md:text-[10px] font-bold text-emerald-600 uppercase block mb-0.5 tracking-wider">Hint</span><div className="text-emerald-900 font-medium italic text-xs md:text-lg leading-tight">"{animalData?.stats?.trait}"</div></div></div>
-                        <div className={`order-3 w-full flex justify-center md:static transition-all duration-500 transform ${currentClueIndex >= 1 ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'} ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}><div className="bg-white/90 backdrop-blur-md px-3 py-1 md:px-6 md:py-3 rounded-lg shadow-xl border border-white/50 text-center min-w-[160px] md:min-w-[220px]"><div className="mb-0.5 md:mb-2"><span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Family</span><span className="text-indigo-600 font-mono font-bold text-xs md:text-lg leading-none">{animalData?.family}</span></div><div className="border-t border-slate-200/50 pt-0.5 md:pt-2"><span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider">Scientific Name</span><span className="text-emerald-800 italic font-serif text-sm md:text-xl leading-none">{animalData?.displayLatin || animalData?.sciName}</span></div></div></div>
+                            )}
+
+                        {/* TEXT CLUES NAV WRAPPER */}
+                        <div className={`mt-auto w-full flex items-center justify-center gap-2 md:gap-4 pointer-events-auto pb-2 ${currentClueIndex === 4 ? 'hidden md:flex' : ''}`}>
+
+                            {/* BACK BUTTON */}
+                            <button 
+                                onClick={() => { sfx.play('click', 0.1); setActiveViewIndex(prev => prev - 1); }} 
+                                disabled={activeViewIndex === 0}
+                                className={`w-10 h-10 md:w-12 md:h-12 flex-shrink-0 rounded-full bg-white/90 backdrop-blur-md shadow-lg border border-slate-200 text-slate-600 font-black flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-600 transition-all active:scale-95 ${activeViewIndex === 0 ? 'opacity-0 pointer-events-none' : 'opacity-100 animate-pop'}`}
+                            >
+                                ◀
+                            </button>
+
+                            {/* DYNAMIC TEXT CARD */}
+                            <div className="relative min-w-[200px] max-w-sm w-full transition-all duration-300 flex justify-center">
+
+                                {/* Scientific Name (Index 0) */}
+                                {activeViewIndex === 0 && (
+                                    <div className="bg-white/90 backdrop-blur-md px-3 py-2 md:px-6 md:py-4 rounded-xl shadow-xl border border-white/50 text-center w-full animate-pop">
+                                        <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider mb-0.5 md:mb-1">Scientific Name</span>
+                                        <span className="text-emerald-800 italic font-serif text-base md:text-xl leading-none">{animalData?.sciName || animalData?.displayLatin}</span>
+                                    </div>
+                                    )}
+
+                                {/* Location (Index 1) */}
+                                {activeViewIndex === 1 && (
+                                    <div className="bg-white/90 backdrop-blur-md px-3 py-2 md:px-6 md:py-4 rounded-xl shadow-xl border border-white/50 text-center w-full animate-pop">
+                                        <span className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase block tracking-wider mb-0.5">Location</span>
+                                        <span className="text-slate-800 font-bold text-sm md:text-lg leading-tight block">{animalData?.location}</span>
+                                    </div>
+                                    )}
+
+                                {/* Hint 1 (Index 2) */}
+                                {activeViewIndex === 2 && (
+                                    <div className="bg-emerald-50/95 backdrop-blur-md px-4 py-3 md:px-6 md:py-4 rounded-xl shadow-xl border border-emerald-100 text-center w-full animate-pop">
+                                        <span className="text-[8px] md:text-[10px] font-bold text-emerald-600 uppercase block mb-1 tracking-wider">Clue 1</span>
+                                        <div className="text-emerald-900 font-medium italic text-sm md:text-lg leading-tight">"{animalData?.stats?.clue1}"</div>
+                                    </div>
+                                    )}
+
+                                {/* Hint 2 (Index 3) */}
+                                {activeViewIndex === 3 && (
+                                    <div className="bg-emerald-50/95 backdrop-blur-md px-4 py-3 md:px-6 md:py-4 rounded-xl shadow-xl border border-emerald-100 text-center w-full animate-pop">
+                                        <span className="text-[8px] md:text-[10px] font-bold text-emerald-600 uppercase block mb-1 tracking-wider">Clue 2</span>
+                                        <div className="text-emerald-900 font-medium italic text-sm md:text-lg leading-tight">"{animalData?.stats?.clue2}"</div>
+                                    </div>
+                                    )}
+                            </div>
+
+                            {/* FORWARD BUTTON */}
+                            <button 
+                                onClick={() => { sfx.play('click', 0.1); setActiveViewIndex(prev => prev + 1); }} 
+                                disabled={activeViewIndex >= currentClueIndex}
+                                className={`w-10 h-10 md:w-12 md:h-12 flex-shrink-0 rounded-full bg-white/90 backdrop-blur-md shadow-lg border border-slate-200 text-slate-600 font-black flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-600 transition-all active:scale-95 ${activeViewIndex >= currentClueIndex || currentClueIndex === 4 ? 'opacity-0 pointer-events-none' : 'opacity-100 animate-pop'}`}
+                            >
+                                ▶
+                            </button>
+
+                        </div>
                     </div>
                 </div>
 
@@ -1312,27 +1824,35 @@ const WildGuessGame = () => {
                     <div className="flex gap-2">
                         <button onMouseEnter={() => sfx.play('hover')} onClick={() => endGame('surrender')} disabled={isTutorialMode} className={`px-4 py-2 text-xs rounded-full transition-all duration-300 ${currentClueIndex === 4 ? 'bg-red-500 text-white font-black tracking-widest shadow-lg hover:bg-red-600 hover:scale-105 animate-pulse' : 'text-slate-400 hover:text-red-500 font-medium'} ${isTutorialMode ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}>GIVE UP</button>
                         {currentClueIndex < 4 && (<button onMouseEnter={() => sfx.play('hover', 0.2)} onClick={() => { sfx.play('click', 0.2); skipClue(); }} disabled={isTutorialMode} className={`bg-blue-50 text-blue-600 px-4 py-1 rounded-full text-xs font-bold hover:bg-blue-100 transition ${isTutorialMode ? 'opacity-30 cursor-not-allowed pointer-events-none' : ''}`}>{timerEnabled ? 'NEXT CLUE' : 'REVEAL NEXT'}</button>)}
+                        </div>
                     </div>
                 </div>
-            </div>
 
             {/* RIGHT PANEL */}
-            <div className="h-[45%] md:h-full md:w-96 bg-slate-50 overflow-hidden border-t md:border-t-0 md:border-l border-slate-200 order-2 flex flex-col shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative">
-                {currentClueIndex === 4 ? (
-                    <div className="flex-1 flex flex-col p-4 items-center bg-slate-100 overflow-hidden">
-                        <div className="flex-shrink-0 mb-4 text-center">
-                            <h3 className="text-xl font-black text-slate-800 uppercase tracking-wide">Final Guess</h3>
-                            <p className="text-xs text-slate-500 font-bold mt-1">Scroll to see all options</p>
+                <div className="h-[45%] md:h-full md:w-96 bg-slate-50 overflow-hidden border-t md:border-t-0 md:border-l border-slate-200 order-2 flex flex-col shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-40 relative">
+                    {currentClueIndex === 4 ? (
+                        <div className="flex-1 flex flex-col p-4 items-center bg-slate-100 overflow-hidden">
+                            <div className="flex-shrink-0 mb-4 text-center">
+                                <h3 className="text-xl font-black text-slate-800 uppercase tracking-wide">Final Guess</h3>
+                                <p className="text-xs text-slate-500 font-bold mt-1">Scroll to see all options</p>
+                            </div>
+
+                            <div className="w-full space-y-3 flex-1 overflow-y-auto custom-scroll px-1 pb-2">
+                                {generateOptions(animalData).map((opt, i) => (
+                                    <button 
+                                        key={i} 
+            // ⬇️ CHANGED 'result' TO 'opt' RIGHT HERE ⬇️
+                                        onClick={() => handleFinalGuess(opt)} 
+                                        className="w-full bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-bold py-4 px-6 rounded-xl shadow-sm border-2 border-slate-200 hover:border-emerald-400 transition-all text-left flex items-center justify-between"
+                                    >
+                                        <span className="uppercase tracking-wider">{opt.name}</span>
+                                        <span>➜</span>
+                                    </button>
+                                    ))}
+                            </div>
                         </div>
-                        
-                        <div className="w-full space-y-3 flex-1 overflow-y-auto custom-scroll px-1 pb-2">
-                            {generateOptions(animalData).map((opt, i) => (
-                                <button key={i} onClick={() => handleFinalGuess(opt.name)} className="w-full bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 font-bold py-4 px-6 rounded-xl shadow-sm border-2 border-slate-200 hover:border-emerald-400 transition-all text-left flex items-center justify-between"><span className="uppercase tracking-wider">{opt.name}</span><span>➜</span></button>
-                            ))}
-                        </div>
-                    </div>
-                ) : (
-                    <>
+                        ) : (
+                        <>
                         <div className="p-2 border-b border-slate-200 bg-slate-100 flex-shrink-0 z-10"><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span><input type="text" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); if (isTutorialMode && tutorialStep === 4) { nextTutorialStep(); } }} placeholder="Search animals..." onClick={() => sfx.play('click', 0.2)} disabled={guessLocked || (isTutorialMode && tutorialStep < 4)} className="w-full pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all shadow-sm disabled:opacity-50 disabled:bg-slate-50" />{searchTerm && (<button onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold px-1">✕</button>)}</div></div>
                         <div className="flex-1 overflow-y-auto custom-scroll p-2 content-start">
                             {searchTerm ? (
@@ -1344,149 +1864,234 @@ const WildGuessGame = () => {
                                     })}
                                     {ALL_ANIMALS_FLAT.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (<div className="col-span-2 text-center text-slate-400 text-xs py-4 italic">No animals found</div>)}
                                 </div>
-                            ) : (
+                                ) : (
                                 <>
-                                    {!selectedGroup && (
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 h-full content-start">
-                                            <button onClick={() => handleCategoryClick("ALL")} disabled={guessLocked || (isTutorialMode && tutorialStep < 4)} className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-slate-200 text-slate-700 hover:bg-slate-300 hover:shadow-md cursor-pointer border border-slate-300 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}><span className="text-xl mr-2 md:mr-0 md:mb-1">🌎</span><span className="text-[10px] md:text-[10px] font-bold uppercase tracking-tight text-left md:text-center leading-tight">All Animals</span></button>
-                                            {ANIMAL_GROUPS.map((group, idx) => (<button key={idx} disabled={guessLocked || (isTutorialMode && tutorialStep < 4)} onClick={() => handleCategoryClick(group)} className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-white hover:bg-emerald-50 hover:shadow-md cursor-pointer border border-slate-100 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}><span className="text-xl mr-2 md:mr-0 md:mb-1">{group.emoji}</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight text-left md:text-center leading-tight">{group.name}</span></button>))}
+                                {!selectedGroup && (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 h-full content-start">
+                                        <button onClick={() => handleCategoryClick("ALL")} disabled={guessLocked || (isTutorialMode && tutorialStep < 4)} className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-slate-200 text-slate-700 hover:bg-slate-300 hover:shadow-md cursor-pointer border border-slate-300 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}><span className="text-xl mr-2 md:mr-0 md:mb-1">🌎</span><span className="text-[10px] md:text-[10px] font-bold uppercase tracking-tight text-left md:text-center leading-tight">All Animals</span></button>
+                                        {ANIMAL_GROUPS.map((group, idx) => (<button key={idx} disabled={guessLocked || (isTutorialMode && tutorialStep < 4)} onClick={() => handleCategoryClick(group)} className={`rounded-xl flex items-center shadow-sm transition-all duration-200 bg-white hover:bg-emerald-50 hover:shadow-md cursor-pointer border border-slate-100 flex-row justify-start px-2 py-1 h-11 md:flex-col md:justify-center md:aspect-square md:h-auto md:px-0 ${(guessLocked || (isTutorialMode && tutorialStep < 4)) ? 'opacity-50' : ''}`}><span className="text-xl mr-2 md:mr-0 md:mb-1">{group.emoji}</span><span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight text-left md:text-center leading-tight">{group.name}</span></button>))}
                                         </div>
-                                    )}
-                                    {selectedGroup && (
-                                        <div className="flex flex-col h-full">
-                                            <button onMouseEnter={() => sfx.play('hover', 0.1)} onClick={() => { sfx.play('click', 0.2); handleBackToCategories(); }} disabled={isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6} className={`mb-2 flex items-center justify-center bg-slate-100 border border-slate-200 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 text-[10px] uppercase font-bold px-2 py-1.5 flex-shrink-0 transition-colors ${(isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6) ? 'opacity-50' : ''}`}>← Back to Categories</button>
-                                            <div className="text-center mb-2 flex-shrink-0"><span className="text-xl inline-block mr-2">{selectedGroup === "ALL" ? "🌎" : selectedGroup.emoji}</span><span className="text-sm font-bold text-slate-700">{selectedGroup === "ALL" ? "All Animals" : selectedGroup.name}</span></div>
-                                            <div className={`grid gap-2 flex-1 content-start ${selectedGroup === "ALL" ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                                                {(selectedGroup === "ALL" ? ALL_ANIMALS_FLAT : selectedGroup.animals).map((animal, idx) => {
-                                                    const isWrong = wrongGuesses.includes(animal.name);
-                                                    return (<button key={idx} disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)} onClick={() => handleFinalGuess(animal.name)} className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all leading-tight ${selectedGroup === "ALL" ? 'py-1 px-1 text-[9px] h-10 flex flex-col justify-center items-center' : 'py-2 px-2 text-xs'} ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}>{selectedGroup === "ALL" && <span className="opacity-60 text-xs mb-0.5">{animal.groupEmoji}</span>}<span className="truncate w-full text-center">{animal.name}</span></button>)
-                                                })}
-                                            </div>
+                                        )}
+                                {selectedGroup && (
+                                    <div className="flex flex-col h-full">
+                                        <button onMouseEnter={() => sfx.play('hover', 0.1)} onClick={() => { sfx.play('click', 0.2); handleBackToCategories(); }} disabled={isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6} className={`mb-2 flex items-center justify-center bg-slate-100 border border-slate-200 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 text-[10px] uppercase font-bold px-2 py-1.5 flex-shrink-0 transition-colors ${(isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6) ? 'opacity-50' : ''}`}>← Back to Categories</button>
+                                        <div className="text-center mb-2 flex-shrink-0"><span className="text-xl inline-block mr-2">{selectedGroup === "ALL" ? "🌎" : selectedGroup.emoji}</span><span className="text-sm font-bold text-slate-700">{selectedGroup === "ALL" ? "All Animals" : selectedGroup.name}</span></div>
+                                        <div className={`grid gap-2 flex-1 content-start ${selectedGroup === "ALL" ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                                            {(selectedGroup === "ALL" ? ALL_ANIMALS_FLAT : selectedGroup.animals).map((animal, idx) => {
+                                                const isWrong = wrongGuesses.includes(animal.name);
+                                                return (<button key={idx} disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)} onClick={() => handleFinalGuess(animal)} className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all leading-tight ${selectedGroup === "ALL" ? 'py-1 px-1 text-[9px] h-10 flex flex-col justify-center items-center' : 'py-2 px-2 text-xs'} ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}>{selectedGroup === "ALL" && <span className="opacity-60 text-xs mb-0.5">{animal.groupEmoji}</span>}<span className="truncate w-full text-center">{animal.name}</span></button>)
+                                            })}
                                         </div>
+                                    </div>
                                     )}
                                 </>
-                            )}
-                        </div>
-                    </>
-                )}
-            </div>
+                                )}
+    </div>
+    </>
+    )}
+    </div>
 
             {/* GLOBAL OVERLAYS */}
-            {view === 'summary' && (
-                <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-pop flex flex-col max-h-[90vh]">
-                        {/* 1. IMAGE HEADER */}
-                        <div className="h-64 bg-slate-200 relative flex-shrink-0">
-                            {animalData?.image ? (<img src={animalData.image} className="w-full h-full object-cover" alt="Animal" />) : (<div className="w-full h-full flex items-center justify-center text-slate-400">No Image</div>)}
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-12">
-                                <h2 className="text-white text-3xl font-bold leading-none">{animalData?.correctName}</h2>
-                                <p className="text-white/80 text-sm italic font-serif mt-1">{animalData?.sciName}</p>
-                            </div>
-                        </div>
+    {view === 'summary' && (
+        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm overflow-y-auto custom-scroll p-4 md:p-8 flex items-start md:items-center justify-center">
 
-                        {/* 2. SCROLLABLE STATS AREA */}
+                    {/* RESPONSIVE WRAPPER: Stacks on mobile, side-by-side on desktop */}
+            <div className="flex flex-col md:flex-row gap-6 w-full max-w-5xl my-auto justify-center items-center md:items-stretch">
+
+                        {/* --- LEFT: SUMMARY CARD (Your Exact Existing Code) --- */}
+                <div className="bg-white rounded-2xl w-full max-w-sm flex-shrink-0 overflow-hidden shadow-2xl animate-pop flex flex-col h-fit">
+                            {/* 1. IMAGE HEADER */}
+                            <div className="h-64 bg-slate-200 relative flex-shrink-0">
+                                {animalData?.image ? (<img src={animalData.image} className="w-full h-full object-cover" alt="Animal" />) : (<div className="w-full h-full flex items-center justify-center text-slate-400">No Image</div>)}
+                                
+                                {/* ⬇️ UPDATED: ROTATING 10-POINT STAR BUTTON ⬇️ */}
+                                {animalData?.wikiSummary && (
+                                    <button 
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); // ⬅️ NEW: Stops invisible layers from stealing the click!
+                                            console.log("🌟 STAR CLICKED! Wiki text exists:", !!animalData?.wikiSummary); 
+                                            sfx.play('click'); 
+                                            setShowWikiModal(true); 
+                                        }}
+                                        className="absolute top-3 right-3 z-[60] w-14 h-14 group hover:scale-110 transition-transform flex items-center justify-center"
+                                        title="Did You Know?"
+                                    >
+                                        <svg className="absolute inset-0 w-full h-full text-amber-400 animate-[spin_6s_linear_infinite] drop-shadow-lg group-hover:text-amber-300" viewBox="0 0 100 100">
+                                            <polygon fill="currentColor" points="50,0 61,25 88,15 76,40 100,50 76,60 88,85 61,75 50,100 39,75 12,85 24,60 0,50 24,40 12,15 39,25"/>
+                                        </svg>
+                                        <span className="relative z-10 text-xl font-black text-amber-900">💡</span>
+                                    </button>
+                                )}
+                                {/* ⬆️ END OF STAR BUTTON ⬆️ */}
+
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-12">
+                                    <h2 className="text-white text-3xl font-bold leading-none">{animalData?.correctName}</h2>
+                                    <p className="text-white/80 text-sm italic font-serif mt-1">{animalData?.sciName}</p>
+                                </div>
+                            </div>
+
+                            {/* 2. SCROLLABLE STATS AREA */}
                         <div className="p-6 text-center flex-1 overflow-y-auto custom-scroll">
-                            
-                            {/* RESULT TEXT (Emojis Removed) */}
+                                {/* RESULT TEXT */}
                             {gameResult === 'win' ? (
                                 <div className="mb-6">
                                     <h3 className="text-2xl font-bold text-emerald-600 mb-1">Correct!</h3>
                                     <p className="text-slate-600 font-medium">You earned <span className="text-emerald-600 font-bold">{roundScore} points</span>.</p>
                                 </div>
-                            ) : (
+                                ) : (
                                 <div className="mb-6">
                                     <h3 className="text-2xl font-bold text-red-600 mb-1">Missed it!</h3>
                                     <p className="text-slate-600">Better luck next time.</p>
                                 </div>
-                            )}
+                                )}
 
-                            {/* STATS CARD */}
-                            <div className="bg-slate-50 rounded-xl p-4 text-left space-y-3 text-sm border border-slate-100 shadow-inner">
-                                <div className="flex justify-between border-b border-slate-200 pb-2">
-                                    <span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Observed By</span>
-                                    {animalData?.link ? (
-                                        <a href={animalData.link} target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-medium hover:underline truncate max-w-[150px]">{animalData.recordedBy} ↗</a>
-                                    ) : (
-                                        <span className="text-slate-700 font-medium">{animalData?.recordedBy}</span>
-                                    )}
+                                {/* STATS CARD */}
+                                <div className="bg-slate-50 rounded-xl p-4 text-left space-y-3 text-sm border border-slate-100 shadow-inner">
+                                    <div className="flex justify-between border-b border-slate-200 pb-2">
+                                        <span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Observed By</span>
+                                        {animalData?.link ? (
+                                            <a href={animalData.link} target="_blank" rel="noopener noreferrer" className="text-emerald-600 font-medium hover:underline truncate max-w-[150px]">{animalData.recordedBy} ↗</a>
+                                            ) : (
+                                            <span className="text-slate-700 font-medium">{animalData?.recordedBy}</span>
+                                            )}
+                                        </div>
+                                        <div className="flex justify-between border-b border-slate-200 pb-2">
+                                            <span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Date</span>
+                                            <span className="text-slate-700 font-medium">{animalData?.stats?.date}</span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-slate-200 pb-2">
+                                            <span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Location</span>
+                                            <span className="text-slate-700 text-right max-w-[60%] font-medium">{animalData?.location}</span>
+                                        </div>
+                                        <div className="pt-4 mt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                                            <div>Source: <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-600 underline">iNaturalist</a></div>
+                                            <button onClick={handleReportIssue} className="flex items-center gap-1 text-slate-300 hover:text-red-400 transition-colors font-bold uppercase tracking-wider" title="Report bad data, wrong location, or dead animal"><span>🚩</span> Report Issue</button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between border-b border-slate-200 pb-2">
-                                    <span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Date</span>
-                                    <span className="text-slate-700 font-medium">{animalData?.stats?.date}</span>
-                                </div>
-                                <div className="flex justify-between border-b border-slate-200 pb-2">
-                                    <span className="text-slate-400 font-bold uppercase text-xs tracking-wider">Location</span>
-                                    <span className="text-slate-700 text-right max-w-[60%] font-medium">{animalData?.location}</span>
-                                </div>
-                                <div className="pt-4 mt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-                                    <div>Source: <a href="https://www.inaturalist.org" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-600 underline">iNaturalist</a></div>
-                                    <button onClick={handleReportIssue} className="flex items-center gap-1 text-slate-300 hover:text-red-400 transition-colors font-bold uppercase tracking-wider" title="Report bad data, wrong location, or dead animal"><span>🚩</span> Report Issue</button>
+
+                            {/* 3. BUTTONS FOOTER */}
+                                <div className="p-4 bg-white border-t border-slate-100 flex-shrink-0 flex flex-col gap-2">
+                                {/* A. PLAY AGAIN */}
+                                    <button onClick={startGame} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-200 transform hover:scale-[1.02] uppercase tracking-widest">
+                                        Play Again
+                                    </button>
+
+                                {/* B. SHARE DISCOVERY */}
+                                    <button onClick={() => { sfx.play('click'); setShowShareMenu(!showShareMenu); }} className={`w-full font-bold py-3 rounded-xl transition-all shadow-lg transform flex items-center justify-center gap-2 uppercase tracking-widest ${showShareMenu ? 'bg-slate-100 text-slate-600 shadow-inner scale-95' : 'bg-blue-600 hover:bg-blue-700 text-white hover:scale-[1.02] shadow-blue-200'}`}>
+                                        <span>{showShareMenu ? '❌' : '📤'}</span> 
+                                        {showShareMenu ? 'Close Options' : 'Share Discovery'}
+                                    </button>
+
+                                {/* Social Icons Drawer */}
+                                    <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showShareMenu ? 'max-h-24 opacity-100 mb-1' : 'max-h-0 opacity-0'}`}>
+                                        <div className="flex gap-2 justify-center pt-2">
+                                            <button onClick={() => { sfx.play('click'); shareToWhatsApp(); }} className="flex-1 bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"><span className="text-xl">💬</span></button>
+                                            <button onClick={() => { sfx.play('click'); shareToFacebook(); }} className="flex-1 bg-[#1877F2] hover:bg-[#166fe5] text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"><span className="text-xl">fb</span></button>
+                                            <button onClick={() => { sfx.play('click'); shareToTwitter(); }} className="flex-1 bg-black hover:bg-gray-800 text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"><span className="text-xl">𝕏</span></button>
+                                            <button onClick={() => { sfx.play('click'); handleShare(); }} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-600 py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95"><span className="text-xl">📋</span></button>
+                                        </div>
+                                    </div>
+
+                                {/* C. ROW: JOURNAL & EXIT */}
+                                    <div className="flex gap-3 mt-0">
+                                        <button onClick={fetchJournal} className={`flex-1 font-bold py-3 rounded-xl transition border-2 flex items-center justify-center text-1xl shadow-sm hover:scale-105 active:scale-95 ${pendingJournalEntries.length > 0 ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-wiggle shadow-emerald-200' : 'bg-amber-100 border-amber-200 text-amber-900 hover:bg-amber-200'}`} title="Open Field Journal">📖</button>
+                                        <button onClick={() => { sfx.play('click'); handleExitGame(); }} className="flex-1 bg-red-400 hover:bg-red-600 text-slate-600 font-bold py-3 rounded-xl shadow-sm border-2 border-slate-300 flex items-center justify-center text-1xl transition-transform hover:scale-105 active:scale-95" title="Exit to Main Menu">➜]</button>
+                                    </div>
                                 </div>
                             </div>
+
+                        {/* --- RIGHT: LEADERBOARD CARD --- */}
+                            <div className="w-full max-w-sm bg-orange-50/95 backdrop-blur-sm rounded-3xl shadow-2xl border-4 border-orange-100 overflow-hidden flex flex-col h-[500px] md:h-auto md:max-h-full animate-pop delay-100">
+                                <div className="bg-orange-100 p-2 border-b border-orange-200 flex flex-col gap-2">
+                                    <div className="flex justify-between items-center px-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xl">👑</span>
+                                            <h2 className="text-orange-800 font-black tracking-wide text-sm uppercase">Top Explorers</h2>
+                                        </div>
+                                    </div>
+
+                                {/* ROW 1: TIME MATRIX */}
+                                    <div className="flex bg-orange-200/50 p-1 rounded-lg">
+                                        {['daily', 'weekly', 'allTime'].map((tab) => (
+                                            <button onMouseEnter={() => sfx.play('hover', 0.2)} onClick={() => { sfx.play('click', 0.1); setLeaderboardTab(tab); }} key={tab} className={`flex-1 text-[10px] font-bold uppercase py-1.5 rounded-md transition-all ${leaderboardTab === tab ? 'bg-white text-orange-600 shadow-sm scale-105' : 'text-orange-800/60 hover:text-orange-800'}`}>
+                                                {tab === 'allTime' ? 'All Time' : tab}
+                                            </button>
+                                            ))}
+                                    </div>
+
+                                {/* ROW 2: TIER MATRIX */}
+                                    <div className="flex bg-orange-200/50 p-1 rounded-lg">
+                                        {[
+                                            { id: 'hobbyist', label: 'Hobbyist (10 games or less)' },
+                                            { id: 'explorer', label: 'Explorer (11+)' }
+                                        ].map((t) => (
+                                            <button onMouseEnter={() => sfx.play('hover', 0.2)} onClick={() => { sfx.play('click', 0.1); setLeaderboardTier(t.id); }} key={t.id} className={`flex-1 text-[10px] font-bold uppercase py-1.5 rounded-md transition-all ${leaderboardTier === t.id ? 'bg-white text-emerald-600 shadow-sm scale-105' : 'text-orange-800/60 hover:text-orange-800'}`}>
+                                                {t.label}
+                                            </button>
+                                            ))}
+                                    </div>
+                                </div>
+
+                            {/* SCROLLABLE LEADERBOARD AREA */}
+                                <div className="flex-1 overflow-y-auto custom-scroll p-3 space-y-2">
+                                    {leaderboardData.length === 0 ? (<div className="h-full flex flex-col items-center justify-center text-orange-300 opacity-50"><span className="text-4xl mb-2">⏳</span><span className="font-bold text-sm uppercase">Loading Scores...</span></div>) : (leaderboardData.map((player, index) => (<div onMouseEnter={() => sfx.play('hover', 0.2)} key={player.id} className={`flex items-center justify-between p-3 rounded-xl border-b-4 transition-transform hover:scale-[1.01] ${player.id === user?.uid ? 'bg-white border-emerald-200 shadow-sm ring-2 ring-emerald-400 ring-offset-1' : 'bg-white border-orange-100 shadow-sm'}`}><div className="flex items-center gap-3"><div className={`font-black text-sm w-8 h-8 flex items-center justify-center rounded-lg ${index === 0 ? 'bg-yellow-400 text-yellow-900' : index === 1 ? 'bg-slate-300 text-slate-700' : index === 2 ? 'bg-amber-600 text-amber-100' : 'bg-slate-100 text-slate-400'}`}>{index + 1}</div><div className="flex flex-col"><span className={`font-bold text-sm leading-tight ${player.id === user?.uid ? 'text-emerald-700' : 'text-slate-700'}`}>{player.username} {player.id === user?.uid && "(You)"}</span><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">{player.gamesPlayed || 0} Expeditions</span><span className="text-[9px] text-emerald-600/80 uppercase font-bold tracking-wider">{player.discoveries || 0} Animals Found</span></div></div></div><div className="bg-orange-100 px-3 py-1 rounded-lg flex items-center gap-1">
+                                        <span className="font-mono font-black text-orange-600 text-sm">{player.averageScore.toFixed(1)}</span><span className="text-[9px] opacity-60 font-bold text-orange-800 pt-0.5">AVG</span>
+                                    </div></div>)))}
+                                </div>
+                            </div>
+
                         </div>
+                    </div>
+                    )}
 
-                        {/* 3. BUTTONS FOOTER (Updated Layout) */}
-                        <div className="p-4 bg-white border-t border-slate-100 flex-shrink-0 flex flex-col gap-2">
+        {showJournal && pendingJournalEntries.length > 0 ? (<NewDiscoveryModal pendingAnimals={pendingJournalEntries} onConfirmOne={handleConfirmJournalEntry} onConfirmAll={handleConfirmAllJournal} allAnimalsFlat={ALL_ANIMALS_FLAT} />) : (journalModal)}
+            {isTutorialMode && (<div className={`absolute z-[100] max-w-[280px] ${TUTORIAL_DATA[tutorialStep].positionClasses}`}><div className="bg-white rounded-xl shadow-2xl p-4 border-2 border-emerald-500 relative animate-pop"><div className={`absolute w-0 h-0 border-[10px] ${TUTORIAL_DATA[tutorialStep].arrowClasses}`}></div><p className="text-slate-700 font-bold text-sm mb-3 leading-snug">{TUTORIAL_DATA[tutorialStep].text.split("**").map((part, i) => i % 2 === 1 ? <span key={i} className="text-emerald-600 font-black">{part}</span> : part)}</p>{!TUTORIAL_DATA[tutorialStep].hideButton && (<button onMouseEnter={() => sfx.play('hover')} onClick={nextTutorialStep} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg text-xs uppercase tracking-wider shadow-sm">{TUTORIAL_DATA[tutorialStep].buttonText}</button>)}</div></div>)}
+            
+                {/* --- WIKIPEDIA "DID YOU KNOW" MODAL --- */}
+                {showWikiModal && (
+                    <div style={{ zIndex: 9999 }} className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+                        <div className="bg-amber-50 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden border-4 border-amber-300 relative animate-pop flex flex-col max-h-[85vh]">
                             
-                            {/* A. PLAY AGAIN (Full Width) */}
-                            <button 
-                                onClick={startGame} 
-                                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-emerald-200 transform hover:scale-[1.02] uppercase tracking-widest"
-                            >
-                                Play Again
-                            </button>
-
-                            {/* B. SHARE DISCOVERY (Full Width) */}
-                            <button 
-                                onClick={() => { sfx.play('click'); setShowShareMenu(!showShareMenu); }} 
-                                className={`w-full font-bold py-3 rounded-xl transition-all shadow-lg transform flex items-center justify-center gap-2 uppercase tracking-widest ${showShareMenu ? 'bg-slate-100 text-slate-600 shadow-inner scale-95' : 'bg-blue-600 hover:bg-blue-700 text-white hover:scale-[1.02] shadow-blue-200'}`}
-                            >
-                                <span>{showShareMenu ? '❌' : '📤'}</span> 
-                                {showShareMenu ? 'Close Options' : 'Share Discovery'}
-                            </button>
-                            
-                            {/* Social Icons Drawer */}
-                            <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showShareMenu ? 'max-h-24 opacity-100 mb-1' : 'max-h-0 opacity-0'}`}>
-                                <div className="flex gap-2 justify-center pt-2">
-                                    <button onClick={() => { sfx.play('click'); shareToWhatsApp(); }} className="flex-1 bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95" title="Share to WhatsApp"><span className="text-xl">💬</span></button>
-                                    <button onClick={() => { sfx.play('click'); shareToFacebook(); }} className="flex-1 bg-[#1877F2] hover:bg-[#166fe5] text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95" title="Share to Facebook"><span className="text-xl">fb</span></button>
-                                    <button onClick={() => { sfx.play('click'); shareToTwitter(); }} className="flex-1 bg-black hover:bg-gray-800 text-white py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95" title="Share to X"><span className="text-xl">𝕏</span></button>
-                                    <button onClick={() => { sfx.play('click'); handleShare(); }} className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-600 py-3 rounded-xl shadow-md flex flex-col items-center justify-center gap-1 transition-transform hover:scale-105 active:scale-95" title="Copy Link / Native Share"><span className="text-xl">📋</span></button>
+                            {/* Header */}
+                            <div className="bg-amber-200/50 p-4 border-b border-amber-300 flex justify-between items-center flex-shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-2xl animate-pulse drop-shadow-sm">💡</span>
+                                    <h2 className="font-black text-amber-900 uppercase tracking-widest text-lg">Did You Know?</h2>
                                 </div>
+                                <button onClick={() => { sfx.play('click'); setShowWikiModal(false); }} className="w-8 h-8 bg-amber-300 hover:bg-amber-400 rounded-full text-amber-900 font-bold flex items-center justify-center transition-colors shadow-sm">✕</button>
                             </div>
-
-                            {/* C. ROW: JOURNAL & EXIT (Half Width Each) */}
-                            <div className="flex gap-3 mt-0">
-                                {/* Journal Button (Icon Only) */}
-                                <button 
-                                    onClick={fetchJournal} 
-                                    className={`flex-1 font-bold py-3 rounded-xl transition border-2 flex items-center justify-center text-1xl shadow-sm hover:scale-105 active:scale-95 ${
-                                        pendingJournalEntries.length > 0 
-                                        ? 'bg-emerald-100 border-emerald-400 text-emerald-800 animate-wiggle shadow-emerald-200' 
-                                        : 'bg-amber-100 border-amber-200 text-amber-900 hover:bg-amber-200'
-                                    }`}
-                                    title="Open Field Journal"
-                                >
-                                    📖
-                                </button>
+                            
+                            {/* Content */}
+                            <div className="p-6 overflow-y-auto custom-scroll text-slate-700 leading-relaxed text-sm">
+                                <div className="mb-5 border-b border-amber-200/50 pb-3">
+                                    <h3 className="text-2xl font-black text-amber-800 mb-1 leading-none">{animalData.correctName}</h3>
+                                    <p className="text-sm italic text-amber-700 opacity-80 font-serif">{animalData.sciName}</p>
+                                </div>
                                 
-                                {/* Exit Button (Icon Only) */}
-                                <button 
-                                    onClick={() => { sfx.play('click'); handleExitGame(); }} 
-                                    className="flex-1 bg-red-400 hover:bg-red-600 text-slate-600 font-bold py-3 rounded-xl shadow-sm border-2 border-slate-300 flex items-center justify-center text-1xl transition-transform hover:scale-105 active:scale-95"
-                                    title="Exit to Main Menu"
-                                >
-                                    ➜]
-                                </button>
+                                {/* WIKIPEDIA HTML INJECTION */}
+                                <div 
+                                    className="space-y-4" 
+                                    dangerouslySetInnerHTML={{ __html: animalData.wikiSummary }} 
+                                />
+                                
+                                {/* Footer Link */}
+                                <div className="mt-6 pt-4 border-t border-amber-200/50 text-right">
+                                    <a 
+                                        href={`https://en.wikipedia.org/wiki/${animalData.correctName.replace(/\s+/g, '_')}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="text-xs font-bold uppercase tracking-wider text-amber-600 hover:text-amber-800 flex items-center justify-end gap-1 transition-colors"
+                                    >
+                                        Read full article on Wikipedia <span>↗</span>
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {showJournal && pendingJournalEntries.length > 0 ? (<NewDiscoveryModal pendingAnimals={pendingJournalEntries} onConfirmOne={handleConfirmJournalEntry} onConfirmAll={handleConfirmAllJournal} allAnimalsFlat={ALL_ANIMALS_FLAT} />) : (journalModal)}
-            {isTutorialMode && (<div className={`absolute z-[100] max-w-[280px] ${TUTORIAL_DATA[tutorialStep].positionClasses}`}><div className="bg-white rounded-xl shadow-2xl p-4 border-2 border-emerald-500 relative animate-pop"><div className={`absolute w-0 h-0 border-[10px] ${TUTORIAL_DATA[tutorialStep].arrowClasses}`}></div><p className="text-slate-700 font-bold text-sm mb-3 leading-snug">{TUTORIAL_DATA[tutorialStep].text.split("**").map((part, i) => i % 2 === 1 ? <span key={i} className="text-emerald-600 font-black">{part}</span> : part)}</p>{!TUTORIAL_DATA[tutorialStep].hideButton && (<button onMouseEnter={() => sfx.play('hover')} onClick={nextTutorialStep} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2 rounded-lg text-xs uppercase tracking-wider shadow-sm">{TUTORIAL_DATA[tutorialStep].buttonText}</button>)}</div></div>)}
-        </div>
-    );
-};
-export default WildGuessGame;
+            </div>
+            );
+    };
+    export default WildGuessGame;
