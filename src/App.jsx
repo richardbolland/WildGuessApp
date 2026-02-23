@@ -28,10 +28,8 @@
             orderBy,
             limit,
             where,
-            getDocs,
-            arrayUnion
+            getDocs,// --- NEW: FILTER ANIMALS BY CURRENT REGION ---
         } from "firebase/firestore";
-
 
 
         // --- COMPONENT: MapClue (With Cinematic FlyTo Animation) ---
@@ -404,22 +402,37 @@
         
         const ALL_ANIMALS_FLAT = animals || []; 
 
-        // --- THE PRELOAD ASSASSIN ---
+ // --- THE PRELOAD ASSASSIN ---
         // This wipes out stale data the microsecond the continent dropdown changes
         useEffect(() => {
-        setPreloadedData(null); // 1. Shred the currently held animal
-        activePreloadRef.current += 1; // 2. Instantly invalidate any background fetches still flying through the internet
-    }, [targetRegion]);
+            setPreloadedData(null); // 1. Shred the currently held animal
+            activePreloadRef.current += 1; // 2. Instantly invalidate any background fetches still flying through the internet
+        }, [targetRegion]);
+
+        // --- NEW: FILTER ANIMALS BY CURRENT REGION ---
+        const PLAYABLE_ANIMALS = useMemo(() => {
+            if (targetRegion === "Any") return ALL_ANIMALS_FLAT;
+            
+            const cleanTarget = targetRegion.replace(/\s+/g, '').toLowerCase();
+            const filtered = ALL_ANIMALS_FLAT.filter(a => {
+                // ⬇️ THE FIX: Check for both 'region' and 'Region' to bypass CSV formatting!
+                const regionString = a.region || a.Region || "";
+                return regionString.replace(/\s+/g, '').toLowerCase() === cleanTarget;
+            });
+            
+            return filtered.length > 0 ? filtered : ALL_ANIMALS_FLAT;
+        }, [ALL_ANIMALS_FLAT, targetRegion]);
 
 
         // --- NEW: REBUILD GROUPS DYNAMICALLY ---
         const ANIMAL_GROUPS = useMemo(() => {
-            if (!ALL_ANIMALS_FLAT.length) return [];
+            // ⬇️ CHANGED to PLAYABLE_ANIMALS
+            if (!PLAYABLE_ANIMALS.length) return []; 
 
             const groups = {};
 
-            ALL_ANIMALS_FLAT.forEach(animal => {
-            // Get the raw category string from the sheet (e.g., "🦎 Reptiles")
+            // ⬇️ CHANGED to PLAYABLE_ANIMALS
+            PLAYABLE_ANIMALS.forEach(animal => { 
                 const fullCatString = animal.category || "📂 Uncategorized";
 
                 if (!groups[fullCatString]) {
@@ -451,7 +464,7 @@
         console.log("🐾 RAW ANIMAL DATA:", ALL_ANIMALS_FLAT);*/
 
             return finalGroups;
-        }, [ALL_ANIMALS_FLAT]);
+        }, [PLAYABLE_ANIMALS]);
 
 
         // --- CHECK FOR MASSIVE UPDATE MODAL ---
@@ -478,14 +491,11 @@
         const generateOptions = (currentAnimal) => {
             if (!currentAnimal) return [];
 
-        // 1. Get 4 random WRONG answers
-            const others = ALL_ANIMALS_FLAT.filter(a => a.name !== currentAnimal.correctName);
+            // ⬇️ CHANGED to PLAYABLE_ANIMALS
+            const others = PLAYABLE_ANIMALS.filter(a => a.name !== currentAnimal.correctName);
             const shuffledOthers = others.sort(() => 0.5 - Math.random()).slice(0, 4);
 
-        // 2. ⬇️ FIXED: Get the REAL, full animal object for the CORRECT answer
             const correctAnimalFull = ALL_ANIMALS_FLAT.find(a => a.name === currentAnimal.correctName);
-
-        // 3. Combine them and shuffle
             const options = [...shuffledOthers, correctAnimalFull];
             return options.sort(() => 0.5 - Math.random());
         };
@@ -1359,8 +1369,9 @@
     const filteredJournalAnimals = ALL_ANIMALS_FLAT.filter(animal => {
         if (journalRegionFilter === "All") return true;
         
-        // ⬇️ NEW: Strip all spaces from both sides before comparing them!
-        const cleanAnimalRegion = animal.region?.replace(/\s+/g, '').toLowerCase();
+        // ⬇️ THE FIX: Add the bulletproof region check here too!
+        const regionString = animal.region || animal.Region || "";
+        const cleanAnimalRegion = regionString.replace(/\s+/g, '').toLowerCase();
         const cleanFilterRegion = journalRegionFilter.replace(/\s+/g, '').toLowerCase();
         
         return cleanAnimalRegion === cleanFilterRegion;
@@ -1857,12 +1868,12 @@
                         <div className="flex-1 overflow-y-auto custom-scroll p-2 content-start">
                             {searchTerm ? (
                                 <div className="grid grid-cols-2 gap-2">
-                                    {ALL_ANIMALS_FLAT.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).map((animal, idx) => {
+                                    {PLAYABLE_ANIMALS.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).map((animal, idx) => {
                                         const isWrong = wrongGuesses.includes(animal.name);
                                         return (<button key={idx} disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)} onClick={() => { handleFinalGuess(animal.name); setSearchTerm(''); }} 
                                             className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all py-2 px-2 text-xs text-left flex items-center ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}><span className="mr-2 text-base">{animal.groupEmoji}</span><span className="truncate">{animal.name}</span></button>);
                                     })}
-                                    {ALL_ANIMALS_FLAT.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (<div className="col-span-2 text-center text-slate-400 text-xs py-4 italic">No animals found</div>)}
+                                    {PLAYABLE_ANIMALS.filter(a => a.name.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (<div className="col-span-2 text-center text-slate-400 text-xs py-4 italic">No animals found</div>)}
                                 </div>
                                 ) : (
                                 <>
@@ -1877,8 +1888,7 @@
                                         <button onMouseEnter={() => sfx.play('hover', 0.1)} onClick={() => { sfx.play('click', 0.2); handleBackToCategories(); }} disabled={isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6} className={`mb-2 flex items-center justify-center bg-slate-100 border border-slate-200 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 text-[10px] uppercase font-bold px-2 py-1.5 flex-shrink-0 transition-colors ${(isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6) ? 'opacity-50' : ''}`}>← Back to Categories</button>
                                         <div className="text-center mb-2 flex-shrink-0"><span className="text-xl inline-block mr-2">{selectedGroup === "ALL" ? "🌎" : selectedGroup.emoji}</span><span className="text-sm font-bold text-slate-700">{selectedGroup === "ALL" ? "All Animals" : selectedGroup.name}</span></div>
                                         <div className={`grid gap-2 flex-1 content-start ${selectedGroup === "ALL" ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                                            {(selectedGroup === "ALL" ? ALL_ANIMALS_FLAT : selectedGroup.animals).map((animal, idx) => {
-                                                const isWrong = wrongGuesses.includes(animal.name);
+                                            {(selectedGroup === "ALL" ? PLAYABLE_ANIMALS : selectedGroup.animals).map((animal, idx) => {                                                const isWrong = wrongGuesses.includes(animal.name);
                                                 return (<button key={idx} disabled={guessLocked || isWrong || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)} onClick={() => handleFinalGuess(animal)} className={`rounded-lg font-bold shadow-sm border border-slate-100 transition-all leading-tight ${selectedGroup === "ALL" ? 'py-1 px-1 text-[9px] h-10 flex flex-col justify-center items-center' : 'py-2 px-2 text-xs'} ${isWrong ? 'bg-red-50 text-red-300 border-red-100 cursor-not-allowed' : 'bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'} ${(guessLocked || (isTutorialMode && tutorialStep !== 5 && tutorialStep !== 6)) ? 'opacity-50' : ''}`}>{selectedGroup === "ALL" && <span className="opacity-60 text-xs mb-0.5">{animal.groupEmoji}</span>}<span className="truncate w-full text-center">{animal.name}</span></button>)
                                             })}
                                         </div>
