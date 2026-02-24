@@ -1,4 +1,4 @@
-        import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
         import L from 'leaflet';
         import 'leaflet/dist/leaflet.css';
         import { useAnimalData } from './animalData';
@@ -13,7 +13,7 @@
             signOut,
             GoogleAuthProvider,
             signInWithPopup,
-            linkWithPopup       
+            linkWithPopup        
         } from "firebase/auth";
         import { 
             doc, 
@@ -28,9 +28,9 @@
             orderBy,
             limit,
             where,
-            getDocs,// --- NEW: FILTER ANIMALS BY CURRENT REGION ---
+            getDocs,
+            arrayUnion
         } from "firebase/firestore";
-
 
         // --- COMPONENT: MapClue (With Cinematic FlyTo Animation) ---
         const MapClue = ({ lat, lng, zoom }) => {
@@ -376,6 +376,8 @@
         const [authLoading, setAuthLoading] = useState(true);
         const [isSaving, setIsSaving] = useState(false);
         const [showLeaderboard, setShowLeaderboard] = useState(false);
+        const [currentUserStats, setCurrentUserStats] = useState(null);
+        const [leaderboardRefreshKey, setLeaderboardRefreshKey] = useState(0);
         const [leaderboardData, setLeaderboardData] = useState([]);
         const [leaderboardTab, setLeaderboardTab] = useState('weekly');
         const [leaderboardTier, setLeaderboardTier] = useState('explorer');
@@ -766,9 +768,8 @@
 
 
         useEffect(() => {
-        // ⬇️ UPDATE: Now fetches when on the menu OR the summary screen!
             if (view === 'menu' || view === 'summary') fetchLeaderboard(leaderboardTab, leaderboardTier);
-        }, [view, leaderboardTab, leaderboardTier]);
+        }, [view, leaderboardTab, leaderboardTier, user, leaderboardRefreshKey]); // ⬅️ ADDED THE REFRESH KEY HERE!
 
         const fetchLeaderboard = async (tab = leaderboardTab, tier = leaderboardTier) => {
         try {
@@ -826,8 +827,18 @@
             // Sort highest average first
             leaders.sort((a, b) => b.averageScore - a.averageScore);
 
-            // Keep only the Top 10 for the UI
-            setLeaderboardData(leaders.slice(0, 10));
+            // --- NEW: FIND CURRENT USER'S TRUE RANK ---
+            let myStats = null;
+            if (user) {
+                const myIndex = leaders.findIndex(p => p.id === user.uid);
+                if (myIndex !== -1) {
+                    myStats = { ...leaders[myIndex], rank: myIndex + 1 };
+                }
+            }
+            setCurrentUserStats(myStats);
+
+            // Keep only the Top 100 for the main UI list!
+            setLeaderboardData(leaders.slice(0, 100));
 
         } catch (error) {
             console.error("Error fetching leaderboard:", error);
@@ -1320,6 +1331,8 @@
                 const userUpdatePromise = updateDoc(userRef, { totalScore: increment(score), gamesPlayed: increment(1), discoveries: increment(isNewDiscovery ? 1 : 0), lastPlayed: serverTimestamp() });
                 const leaderboardPayload = { username: username, photoURL: user.photoURL || null, score: increment(score), gamesPlayed: increment(1), discoveries: increment(isNewDiscovery ? 1 : 0) };
                 await Promise.all([gameRecordPromise, userUpdatePromise, setDoc(dailyRef, leaderboardPayload, { merge: true }), setDoc(weeklyRef, leaderboardPayload, { merge: true })]);
+            
+                setLeaderboardRefreshKey(prev => prev + 1);
             } catch (error) { console.error("Error saving game:", error); }
         }
     };
@@ -1506,8 +1519,8 @@
                                 )}
                             </div>
                         </div>
-                        <div className="relative z-10 w-full max-w-md md:w-1/2 h-[500px] md:h-[80vh] flex flex-col md:pl-8 flex-shrink-0 mb-12 md:mb-0">
-                            <div className="bg-orange-50/95 backdrop-blur-sm rounded-3xl shadow-2xl border-4 border-orange-100 overflow-hidden flex flex-col h-full max-h-[500px] md:max-h-full">
+                        <div className="relative z-10 w-full max-w-md md:w-1/2 h-[500px] md:h-[550px] flex flex-col md:pl-8 flex-shrink-0 mb-12 md:mb-0">
+                            <div className="bg-orange-50/95 backdrop-blur-sm rounded-3xl shadow-2xl border-4 border-orange-100 overflow-hidden flex flex-col h-full">
                                 <div className="bg-orange-100 p-2 border-b border-orange-200 flex flex-col gap-2">
                                     <div className="flex justify-between items-center px-2">
                                         <div className="flex items-center gap-2">
@@ -1554,6 +1567,27 @@
                                             ))}
                                     </div>
                                 </div>
+
+                                {user && currentUserStats && (
+                                <div className="bg-emerald-50 border-b border-emerald-200 p-3 flex items-center justify-between shadow-sm z-10 flex-shrink-0">
+                                    <div className="flex items-center gap-3">
+                                        <div className="font-black text-sm w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-500 text-white shadow-inner">
+                                            #{currentUserStats.rank}
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-sm leading-tight text-emerald-800">Your Average</span>
+                                            <div className="flex items-center gap-3 mt-0.5">
+                                                <span className="text-[9px] text-emerald-600/80 uppercase font-bold tracking-wider">{currentUserStats.gamesPlayed} Expeditions</span>
+                                                <span className="text-[9px] text-emerald-600/80 uppercase font-bold tracking-wider">{currentUserStats.discoveries} Found</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white px-3 py-1 rounded-lg flex items-center gap-1 border border-emerald-200 shadow-sm">
+                                        <span className="font-mono font-black text-emerald-600 text-sm">{currentUserStats.averageScore.toFixed(1)}</span>
+                                        <span className="text-[9px] opacity-60 font-bold text-emerald-800 pt-0.5">AVG</span>
+                                    </div>
+                                </div>
+                            )}
 
                                 <div className="flex-1 overflow-y-auto custom-scroll p-3 space-y-2">
                                     {leaderboardData.length === 0 ? (<div className="h-full flex flex-col items-center justify-center text-orange-300 opacity-50"><span className="text-4xl mb-2">⏳</span><span className="font-bold text-sm uppercase">Loading Scores...</span></div>) : (leaderboardData.map((player, index) => (<div onMouseEnter={() => sfx.play('hover', 0.2)} key={player.id} className={`flex items-center justify-between p-3 rounded-xl border-b-4 transition-transform hover:scale-[1.01] ${player.id === user?.uid ? 'bg-white border-emerald-200 shadow-sm ring-2 ring-emerald-400 ring-offset-1' : 'bg-white border-orange-100 shadow-sm'}`}><div className="flex items-center gap-3"><div className={`font-black text-sm w-8 h-8 flex items-center justify-center rounded-lg ${index === 0 ? 'bg-yellow-400 text-yellow-900' : index === 1 ? 'bg-slate-300 text-slate-700' : index === 2 ? 'bg-amber-600 text-amber-100' : 'bg-slate-100 text-slate-400'}`}>{index + 1}</div><div className="flex flex-col"><span className={`font-bold text-sm leading-tight ${player.id === user?.uid ? 'text-emerald-700' : 'text-slate-700'}`}>{player.username} {player.id === user?.uid && "(You)"}</span><div className="flex items-center gap-3 mt-0.5"><span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">{player.gamesPlayed || 0} Expeditions</span><span className="text-[9px] text-emerald-600/80 uppercase font-bold tracking-wider">{player.discoveries || 0} Animals Found</span></div></div></div><div className="bg-orange-100 px-3 py-1 rounded-lg flex items-center gap-1">
@@ -2012,7 +2046,7 @@
                             </div>
 
                         {/* --- RIGHT: LEADERBOARD CARD --- */}
-                            <div className="w-full max-w-sm bg-orange-50/95 backdrop-blur-sm rounded-3xl shadow-2xl border-4 border-orange-100 overflow-hidden flex flex-col h-[500px] md:h-auto md:max-h-full animate-pop delay-100">
+                        <div className="w-full max-w-sm bg-orange-50/95 backdrop-blur-sm rounded-3xl shadow-2xl border-4 border-orange-100 overflow-hidden flex flex-col h-[500px] md:h-[775px] animate-pop delay-100">
                                 <div className="bg-orange-100 p-2 border-b border-orange-200 flex flex-col gap-2">
                                     <div className="flex justify-between items-center px-2">
                                         <div className="flex items-center gap-2">
@@ -2042,6 +2076,30 @@
                                             ))}
                                     </div>
                                 </div>
+
+                                {/* --- NEW: PINNED USER STATS --- */}
+                                {user && currentUserStats && (
+                                    <div className="bg-emerald-50 border-b border-emerald-200 p-3 flex items-center justify-between shadow-sm z-10 flex-shrink-0">
+                                        <div className="flex items-center gap-3">
+                                            <div className="font-black text-sm w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-500 text-white shadow-inner">
+                                                #{currentUserStats.rank}
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-sm leading-tight text-emerald-800">Your Average</span>
+                                                <div className="flex items-center gap-3 mt-0.5">
+                                                    <span className="text-[9px] text-emerald-600/80 uppercase font-bold tracking-wider">{currentUserStats.gamesPlayed} Expeditions</span>
+                                                    <span className="text-[9px] text-emerald-600/80 uppercase font-bold tracking-wider">{currentUserStats.discoveries} Found</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white px-3 py-1 rounded-lg flex items-center gap-1 border border-emerald-200 shadow-sm">
+                                            <span className="font-mono font-black text-emerald-600 text-sm">{currentUserStats.averageScore.toFixed(1)}</span>
+                                            <span className="text-[9px] opacity-60 font-bold text-emerald-800 pt-0.5">AVG</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                          
 
                             {/* SCROLLABLE LEADERBOARD AREA */}
                                 <div className="flex-1 overflow-y-auto custom-scroll p-3 space-y-2">
