@@ -47,9 +47,9 @@ import { useState, useEffect, useRef, useMemo } from 'react';
                         scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, 
                     }).setView([lat, lng], zoom);
 
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
-                        attribution: '&copy; OpenStreetMap &copy; CARTO',
-                        maxZoom: 19
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        attribution: 'Tiles &copy; Esri',
+                        maxZoom: 18
                     }).addTo(mapInstanceRef.current);
 
                     const icon = L.divIcon({
